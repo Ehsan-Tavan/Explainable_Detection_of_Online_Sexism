@@ -11,6 +11,7 @@ from tqdm import tqdm
 from collections import defaultdict
 import scipy.sparse as sp
 import spacy
+import os
 
 import numpy as np
 from typing import List
@@ -22,23 +23,23 @@ from sklearn.model_selection import train_test_split
 # ============================ My packages ============================
 from .helper import create_mask, filtered_infrequent_vocabs, remove_stop_words_from_vocabs
 from .helper import calculate_tf_idf, calculate_pmi
+from data_loader import read_pickle, write_pickle
 
 
 class AdjacencyMatrixBuilder:
-    def __init__(self, docs: List[str], window_size: int):
+    def __init__(self, docs: List[str], window_size: int, args):
         self.docs = docs
         self.window_size = window_size
         self.word2index = {}
         self.index2word = {}
         self.windows = []
         self.index2doc = None
+        self.filtered_vocabs = []
+        self.args = args
         self.nlp = spacy.load('../assets/en_core_web_sm')
 
         vocab2frequency = self.build_word_counter()
-        vocabs = remove_stop_words_from_vocabs(vocab2frequency.keys())
-
-        self.filtered_vocabs = filtered_infrequent_vocabs(vocabs, vocab2frequency,
-                                                          min_occurrence=3)
+        self.filter_vocabs(vocab2frequency)
 
         self.nod_id2node_value = {idx: data for idx, data in
                                   enumerate(self.docs + self.filtered_vocabs)}
@@ -47,6 +48,15 @@ class AdjacencyMatrixBuilder:
         self.build_index2doc()
         self.build_windows_of_words()
 
+    def filter_vocabs(self, vocab2frequency):
+        if os.path.exists(self.args.filtered_vocabs_path):
+            self.filtered_vocabs = read_pickle(self.args.filtered_vocabs_path)
+        else:
+            vocabs = remove_stop_words_from_vocabs(vocab2frequency.keys())
+            self.filtered_vocabs = filtered_infrequent_vocabs(vocabs, vocab2frequency,
+                                                              min_occurrence=3)
+            write_pickle(self.args.filtered_vocabs_path, self.filtered_vocabs)
+
     def build_unique_words(self):
         words = set()
         for doc in self.docs:
@@ -54,11 +64,16 @@ class AdjacencyMatrixBuilder:
         return list(words)
 
     def build_word_counter(self):
-        vocab2frequency = defaultdict(int)
-        for doc in tqdm(self.docs):
-            text = self.nlp(doc)
-            for word in text:
-                vocab2frequency[word.lemma_.lower()] += 1
+        if os.path.exists(self.args.vocab2frequency_path):
+            vocab2frequency = read_pickle(self.args.vocab2frequency_path)
+        else:
+            vocab2frequency = defaultdict(int)
+            for doc in tqdm(self.docs):
+                text = self.nlp(doc)
+                for word in text:
+                    vocab2frequency[word.lemma_.lower()] += 1
+            write_pickle(self.args.vocab2frequency_path, vocab2frequency)
+
         return vocab2frequency
 
     def build_word2doc_ids(self):
@@ -92,18 +107,22 @@ class AdjacencyMatrixBuilder:
         self.index2doc = {i: doc for i, doc in enumerate(self.docs)}
 
     def build_windows_of_words(self):
-        for doc in tqdm(self.docs):
-            doc = self.nlp(doc)
-            words = [tok.lemma_.lower() for tok in doc]
-            doc_length = len(words)
-            if doc_length <= self.window_size:
-                self.windows.append(
-                    list(filter(lambda vocab: vocab in self.filtered_vocabs, words)))
-            else:
-                for idx in range(doc_length - self.window_size + 1):
-                    window = words[idx: idx + self.window_size]
+        if os.path.exists(self.args.windows_path):
+            self.windows = read_pickle(self.args.windows_path)
+        else:
+            for doc in tqdm(self.docs):
+                doc = self.nlp(doc)
+                words = [tok.lemma_.lower() for tok in doc]
+                doc_length = len(words)
+                if doc_length <= self.window_size:
                     self.windows.append(
-                        list(filter(lambda vocab: vocab in self.filtered_vocabs, window)))
+                        list(filter(lambda vocab: vocab in self.filtered_vocabs, words)))
+                else:
+                    for idx in range(doc_length - self.window_size + 1):
+                        window = words[idx: idx + self.window_size]
+                        self.windows.append(
+                            list(filter(lambda vocab: vocab in self.filtered_vocabs, window)))
+            write_pickle(self.args.windows_path, self.windows)
 
     @staticmethod
     def build_word2window_frequency(windows):
