@@ -95,9 +95,8 @@ def predict(graph, idx_loader, model, device):
     with torch.no_grad():
         for index in idx_loader:
             (index,) = [x.to(device) for x in index]
-            val_mask = graph.val_mask[index].type(torch.BoolTensor)
-
-            y_pred_ = model(graph, index)[val_mask]
+            test_mask = graph.test_mask[index].type(torch.BoolTensor)
+            y_pred_ = model(graph, index)[test_mask]
             predictions = torch.argmax(y_pred_, -1).cpu().tolist()
             y_pred.extend(predictions)
     return y_pred
