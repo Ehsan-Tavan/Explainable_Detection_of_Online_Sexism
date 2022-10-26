@@ -59,8 +59,14 @@ class BaseConfig:
 
         self.parser.add_argument("--train_data_file", type=str, default="train_all_tasks.csv")
         self.parser.add_argument("--test_data_file", type=str, default="dev_task_a_entries.csv")
+        self.parser.add_argument("--vocab2frequency_path", type=str,
+                                 default="../assets/vocab2frequency.pkl")
         self.parser.add_argument("--adjacency_file_path", type=str,
                                  default="../assets/adjacency_matrix.pkl")
+        self.parser.add_argument("--filtered_vocabs_path", type=str,
+                                 default="../assets/filtered_vocabs.pkl")
+        self.parser.add_argument("--windows_path", type=str,
+                                 default="../assets/windows.pkl")
         self.parser.add_argument("--sbert_model", type=str,
                                  default="../assets/pretrained_models/"
                                          "distiluse-base-multilingual-cased-v2")
