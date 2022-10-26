@@ -8,8 +8,7 @@
 
 # ============================ Third Party libs ============================
 import torch
-from torch_geometric.nn import GCNConv, GAT
-import transformers
+from torch_geometric.nn import Sequential, GCNConv
 
 
 class GraphModel(torch.nn.Module):
@@ -36,21 +35,20 @@ class GCNModel(torch.nn.Module):
     def __init__(self, bert_model, num_feature, hidden_dim, num_classes):
         super().__init__()
         self.lm_model = bert_model
-        self.graph_model = GraphModel(num_feature, hidden_dim)
-        self.mean_pooling = torch.nn.AvgPool1d(50)
+        self.gnn_model = GraphModel(num_feature, hidden_dim)
+        self.mean_pooling = torch.nn.AvgPool1d(80)
         self.classifier = torch.nn.Linear(832, num_classes)
-        self.m = 0.4
 
     def forward(self, graph, index):
         input_ids, attention_mask = graph.input_ids[index], graph.attention_mask[index]
-        cls_feats = self.lm_model(input_ids).last_hidden_state
-        cls_feats = self.mean_pooling(cls_feats.permute(0, 2, 1)).squeeze(2)
-        graph.x[index] = cls_feats.clone().detach().requires_grad_(True)
-        x = self.graph_model(graph, index)
+        lm_output = self.lm_model(input_ids).last_hidden_state
+        lm_output = self.mean_pooling(lm_output.permute(0, 2, 1)).squeeze(2)
 
-        pred = torch.cat((x, cls_feats), 1)
+        graph.x[index] = lm_output.clone().detach().requires_grad_(True)
+
+        gnn_output = self.gnn_model(graph, index)
+        pred = torch.cat((gnn_output, lm_output), 1)
         pred = self.classifier(pred)
-        # pred = x * self.m + bert_pred * (1 - self.m)
         return pred
 
 # class Encoder(torch.nn.Module):
