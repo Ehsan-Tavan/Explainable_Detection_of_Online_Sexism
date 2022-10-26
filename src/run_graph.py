@@ -10,6 +10,8 @@ import os
 import numpy as np
 import gc
 import pickle
+
+import pandas as pd
 import torch
 import transformers
 import torch.utils.data as Data
@@ -48,7 +50,7 @@ if __name__ == "__main__":
 
     ADJACENCY_BUILDER_OBJ = AdjacencyMatrixBuilder(
         docs=list(TRAIN_DATA.text) + list(TEST_DATA.text),
-        window_size=ARGS.window_size)
+        window_size=ARGS.window_size, args=ARGS)
 
     if not os.path.exists(ARGS.adjacency_file_path):
         ADJACENCY_MATRIX = ADJACENCY_BUILDER_OBJ.build_adjacency_matrix()
@@ -102,14 +104,15 @@ if __name__ == "__main__":
     OPTIMIZER = torch.optim.Adam([
         {'params': MODEL.lm_model.parameters(), 'lr': 1e-5},
         {'params': MODEL.classifier.parameters(), 'lr': 1e-3},
-        {'params': MODEL.graph_model.parameters(), 'lr': 1e-3},
+        {'params': MODEL.gnn_model.parameters(), 'lr': 1e-3},
     ], lr=1e-3
     )
 
     CRITERION = torch.nn.CrossEntropyLoss(weight=torch.Tensor(class_weights)).to(ARGS.device)
     BEST_LOSS = float("inf")
     MODEL_PATH = ""
-
+    BEST_EPOCH = 0
+    MIN_EPOCH = 2
     for epoch in range(100):
         LOSS, ACCURACY = train_step(GRAPH, IDX_LOADER, MODEL, OPTIMIZER, CRITERION, ARGS.device)
 
@@ -128,8 +131,10 @@ if __name__ == "__main__":
                                     y_pred=PREDICTIONS))
         if VAL_LOSS < BEST_LOSS:
             MODEL_PATH = f"../assets/saved_models/model_epoch_{epoch + 1}_val_loss_{VAL_LOSS}.pt"
-            torch.save(MODEL,
-                       MODEL_PATH)
+            torch.save(MODEL, MODEL_PATH)
+            BEST_EPOCH = epoch + 1
+        if (BEST_EPOCH < epoch + 6) and (BEST_EPOCH > MIN_EPOCH):
+            break
 
     PREDICTIONS, TRUE_LABEL, VAL_LOSS = test_step(GRAPH, IDX_LOADER_VAL, MODEL, CRITERION,
                                                   ARGS.device)
@@ -144,10 +149,11 @@ if __name__ == "__main__":
     print("f12_test: {:.4f}".format(f12_test))
     print(classification_report(y_true=GRAPH.y[GRAPH.val_mask].cpu(),
                                 y_pred=PREDICTIONS))
-    visualize(PREDICTIONS,
-              color=GRAPH.y[GRAPH.val_mask].detach().cpu().numpy())
 
     MODEL = torch.load(MODEL_PATH).to(ARGS.device())
     TEST_PRED = predict(GRAPH, IDX_LOADER_TEST, MODEL, ARGS.device)
     TEST_PRED = graph_builder_obj.label_encoder.inverse_transform(TEST_PRED)
 
+    RESULT_DATA = pd.DataFrame(
+        {"rewire_id": list(TEST_DATA.rewire_id), "label_pred": list(TEST_PRED)})
+    RESULT_DATA.to_csv("./result.csv", index=False)
