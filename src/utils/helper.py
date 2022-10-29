@@ -11,9 +11,12 @@ from math import log
 from typing import List
 import spacy
 import torch
-from sklearn.metrics import accuracy_score, f1_score, classification_report
+from sklearn.metrics import accuracy_score, f1_score
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
+import torch
+from ignite.metrics import Metric
+from ignite.metrics.metric import sync_all_reduce, reinit__is_reduced
 
 
 def cal_accuracy(predictions, labels):
@@ -145,3 +148,29 @@ def change_vocab_to_lemma(vocabs):
         for token in doc:
             lemmas.add(token.lemma_.lower())
     return list(lemmas)
+
+
+class F1Score(Metric):
+
+    def __init__(self, output_transform=lambda x: x, device="cpu"):
+        self.f1 = 0
+        self.count = 0
+        super().__init__(output_transform=output_transform, device=device)
+
+    @reinit__is_reduced
+    def update(self, output):
+        y_pred, y = output[0].detach(), output[1].detach()
+
+        f = f1_score(y.cpu(), y_pred.cpu(), average="macro")
+        self.f1 += f
+        self.count += 1
+
+    @reinit__is_reduced
+    def reset(self):
+        self.f1 = 0
+        self.count = 0
+        super(F1Score, self).reset()
+
+    @sync_all_reduce("_num_examples", "_num_correct:SUM")
+    def compute(self):
+        return self.f1 / self.count
