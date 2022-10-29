@@ -3,8 +3,10 @@ import torch
 import torch.utils.data as Data
 from ignite.engine import Engine, Events
 from ignite.metrics import Accuracy, Loss, RunningAverage
-from ignite.handlers import ModelCheckpoint, EarlyStopping
+from ignite.handlers import EarlyStopping
 from ignite.contrib.handlers import ProgressBar
+
+from .helper import F1Score
 
 
 class DeepModel:
@@ -16,6 +18,7 @@ class DeepModel:
         self.train_iterator = train_iterator
         self.valid_iterator = valid_iterator
         self.checkpoint_path = checkpoint_path
+        self.best_loss = float("inf")
 
         self.trainer = None
         self.train_evaluator = None
@@ -38,11 +41,7 @@ class DeepModel:
         self.trainer.add_event_handler(Events.EPOCH_COMPLETED, self.log_validation_results)
         self.progress_bar = ProgressBar(persist=True, bar_format="")
         self.progress_bar.attach(self.trainer, ["loss"])
-        checkpoint = ModelCheckpoint(self.checkpoint_path, "textCnn", n_saved=2, create_dir=True,
-                                     require_empty=False)
-
-        self.trainer.add_event_handler(Events.EPOCH_COMPLETED, checkpoint,
-                                       {"textCnn": self.model})
+        self.trainer.add_event_handler(Events.EPOCH_COMPLETED, self.save_best_epoch_only)
         self.trainer.add_event_handler(Events.EPOCH_COMPLETED, self._update_feature)
 
     def configure_train_evaluator(self):
@@ -50,6 +49,9 @@ class DeepModel:
         self.train_evaluator = Engine(eval_step)
         Accuracy(output_transform=self.threshold_output_transform).attach(self.train_evaluator,
                                                                           "accuracy")
+
+        F1Score(output_transform=self.threshold_output_transform).attach(self.train_evaluator,
+                                                                         "f1_score")
         Loss(self.criterion).attach(self.train_evaluator, "ce")
 
     def configure_validation_evaluator(self):
@@ -58,6 +60,8 @@ class DeepModel:
 
         Accuracy(output_transform=self.threshold_output_transform).attach(self.validation_evaluator,
                                                                           "accuracy")
+        F1Score(output_transform=self.threshold_output_transform).attach(self.validation_evaluator,
+                                                                         "f1_score")
         Loss(self.criterion).attach(self.validation_evaluator, "ce")
 
     def configure_early_stopping(self, patience=5):
@@ -101,19 +105,23 @@ class DeepModel:
         self.train_evaluator.run(self.train_iterator)
         metrics = self.train_evaluator.state.metrics
         avg_accuracy = metrics["accuracy"]
+        avg_f1_score = metrics["f1_score"]
         avg_ce = metrics["ce"]
         self.progress_bar.log_message(
             f"Training Results - Epoch: {engine.state.epoch}  "
-            f"Avg accuracy: {avg_accuracy:.2f} Avg loss: {avg_ce:.2f}")
+            f"Avg accuracy: {avg_accuracy:.2f} Avg F1 Score : {avg_f1_score:.2f} "
+            f"Avg loss: {avg_ce:.2f}")
 
     def log_validation_results(self, engine):
         self.validation_evaluator.run(self.valid_iterator)
         metrics = self.validation_evaluator.state.metrics
         avg_accuracy = metrics["accuracy"]
+        avg_f1_score = metrics["f1_score"]
         avg_bce = metrics["ce"]
         self.progress_bar.log_message(
             f"Validation Results - Epoch: {engine.state.epoch}  "
-            f"Avg accuracy: {avg_accuracy:.2f} Avg loss: {avg_bce:.2f}")
+            f"Avg accuracy: {avg_accuracy:.2f} Avg F1 Score : {avg_f1_score:.2f} "
+            f"Avg loss: {avg_bce:.2f}")
         self.progress_bar.n = self.progress_bar.last_print_n = 0
 
     def configure_optimizers(self):
@@ -147,3 +155,13 @@ class DeepModel:
                 nodes_features.append(output)
             nodes_features = torch.cat(nodes_features, axis=0)
         self.graph.x[doc_mask] = nodes_features
+
+    def save_best_epoch_only(self, engine):
+        epoch = engine.state.epoch
+
+        metrics = self.validation_evaluator.state.metrics
+        if metrics["ce"] < self.best_loss:
+            self.best_loss = metrics["ce"]
+            model_path = f"../assets/saved_models/model_epoch_{epoch}_val_loss_" \
+                         f"{self.best_loss:.4f}.pt"
+            torch.save(self.model, model_path)
