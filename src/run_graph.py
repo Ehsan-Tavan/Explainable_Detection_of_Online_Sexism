@@ -8,21 +8,18 @@
 # ============================ Third Party libs ============================
 import os
 import numpy as np
-import gc
 import pickle
 
-import pandas as pd
 import torch
 import transformers
 import torch.utils.data as Data
-from sklearn.metrics import accuracy_score, f1_score, classification_report
 from sklearn.utils.class_weight import compute_class_weight
 from sentence_transformers import SentenceTransformer
 
 # ============================ My packages ============================
 from configuration import BaseConfig
 from data_loader import read_csv
-from utils import AdjacencyMatrixBuilder, GraphBuilder, train_step, visualize, test_step, predict
+from utils import AdjacencyMatrixBuilder, GraphBuilder, DeepModel
 from models import GCNModel
 
 # ========================================================================
@@ -91,7 +88,7 @@ if __name__ == "__main__":
         torch.arange(NB_TRAIN + NB_VAL, NB_TRAIN + NB_VAL + NB_TEST, dtype=torch.long))
     doc_idx = Data.ConcatDataset([train_idx, val_idx, test_idx])
 
-    batch_size = 128
+    batch_size = 64
     IDX_LOADER_TRAIN = Data.DataLoader(train_idx, batch_size=batch_size, shuffle=True)
     IDX_LOADER_VAL = Data.DataLoader(val_idx, batch_size=batch_size, shuffle=False)
     IDX_LOADER_TEST = Data.DataLoader(test_idx, batch_size=batch_size, shuffle=False)
@@ -112,48 +109,9 @@ if __name__ == "__main__":
     BEST_LOSS = float("inf")
     MODEL_PATH = ""
     BEST_EPOCH = 0
-    MIN_EPOCH = 2
-    for epoch in range(100):
-        LOSS, ACCURACY = train_step(GRAPH, IDX_LOADER, MODEL, OPTIMIZER, CRITERION, ARGS.device)
-
-        print(f"epoch {epoch + 1}, train acc is : {ACCURACY:.4f}, and train loss is : , {LOSS:.3f}")
-        PREDICTIONS, TRUE_LABEL, VAL_LOSS = test_step(GRAPH, IDX_LOADER_VAL, MODEL, CRITERION,
-                                                      ARGS.device)
-        acc_test = accuracy_score(GRAPH.y[GRAPH.val_mask].cpu(), PREDICTIONS)
-        f11_test = f1_score(GRAPH.y[GRAPH.val_mask].cpu(), PREDICTIONS,
-                            average="macro")
-        f12_test = f1_score(GRAPH.y[GRAPH.val_mask].cpu(), PREDICTIONS,
-                            average="weighted")
-        print("acc_test: {:.4f}".format(acc_test))
-        print("f11_test: {:.4f}".format(f11_test))
-        print("f12_test: {:.4f}".format(f12_test))
-        print(classification_report(y_true=GRAPH.y[GRAPH.val_mask].cpu(),
-                                    y_pred=PREDICTIONS))
-        if VAL_LOSS < BEST_LOSS:
-            MODEL_PATH = f"../assets/saved_models/model_epoch_{epoch + 1}_val_loss_{VAL_LOSS}.pt"
-            torch.save(MODEL, MODEL_PATH)
-            BEST_EPOCH = epoch + 1
-        if (BEST_EPOCH < epoch + 6) and (BEST_EPOCH > MIN_EPOCH):
-            break
-
-    PREDICTIONS, TRUE_LABEL, VAL_LOSS = test_step(GRAPH, IDX_LOADER_VAL, MODEL, CRITERION,
-                                                  ARGS.device)
-
-    acc_test = accuracy_score(GRAPH.y[GRAPH.val_mask].cpu(), PREDICTIONS)
-    f11_test = f1_score(GRAPH.y[GRAPH.val_mask].cpu(), PREDICTIONS,
-                        average="macro")
-    f12_test = f1_score(GRAPH.y[GRAPH.val_mask].cpu(), PREDICTIONS,
-                        average="weighted")
-    print("acc_test: {:.4f}".format(acc_test))
-    print("f11_test: {:.4f}".format(f11_test))
-    print("f12_test: {:.4f}".format(f12_test))
-    print(classification_report(y_true=GRAPH.y[GRAPH.val_mask].cpu(),
-                                y_pred=PREDICTIONS))
-
-    MODEL = torch.load(MODEL_PATH).to(ARGS.device())
-    TEST_PRED = predict(GRAPH, IDX_LOADER_TEST, MODEL, ARGS.device)
-    TEST_PRED = graph_builder_obj.label_encoder.inverse_transform(TEST_PRED)
-
-    RESULT_DATA = pd.DataFrame(
-        {"rewire_id": list(TEST_DATA.rewire_id), "label_pred": list(TEST_PRED)})
-    RESULT_DATA.to_csv("./result.csv", index=False)
+    MIN_EPOCH = 5
+    TRAINER = DeepModel(model=MODEL, graph=GRAPH, device=ARGS.device, train_iterator=IDX_LOADER,
+                        valid_iterator=IDX_LOADER_VAL, checkpoint_path="../assets/saved_models",
+                        class_weights=class_weights)
+    TRAINER.setup()
+    TRAINER.trainer.run(IDX_LOADER, max_epochs=20)
