@@ -10,7 +10,7 @@ from ignite.contrib.handlers import ProgressBar
 from .helper import F1Score
 
 
-class DeepModel:
+class IgniteTrainer:
     def __init__(self, model, graph, device, train_iterator, valid_iterator, checkpoint_path,
                  class_weights=None):
         self.model = model

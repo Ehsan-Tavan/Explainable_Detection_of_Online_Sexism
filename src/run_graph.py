@@ -21,7 +21,7 @@ from configuration import BaseConfig
 from data_loader import read_csv
 from graph_constructor import GraphBuilder, SemanticAdjacencyMatrixBuilder, \
     SyntacticAdjacencyMatrixBuilder, SequentialAdjacencyMatrixBuilder
-from utils import DeepModel
+from utils import IgniteTrainer
 from models import GCNModel
 
 # ========================================================================
@@ -132,8 +132,8 @@ if __name__ == "__main__":
     MODEL_PATH = ""
     BEST_EPOCH = 0
     MIN_EPOCH = 5
-    TRAINER = DeepModel(model=MODEL, graph=GRAPH, device=ARGS.device, train_iterator=IDX_LOADER,
-                        valid_iterator=IDX_LOADER_VAL, checkpoint_path="../assets/saved_models",
-                        class_weights=class_weights)
+    TRAINER = IgniteTrainer(model=MODEL, graph=GRAPH, device=ARGS.device, train_iterator=IDX_LOADER,
+                            valid_iterator=IDX_LOADER_VAL, checkpoint_path="../assets/saved_models",
+                            class_weights=class_weights)
     TRAINER.setup()
     TRAINER.trainer.run(IDX_LOADER, max_epochs=20)
