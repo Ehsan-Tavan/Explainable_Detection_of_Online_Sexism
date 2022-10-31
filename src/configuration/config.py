@@ -38,10 +38,14 @@ class BaseConfig:
         self.parser.add_argument("--window_size", type=int, default=5)
         self.parser.add_argument("--max_len", type=int, default=100)
         self.parser.add_argument("--dev_size", type=float, default=0.2)
-        self.parser.add_argument("--tvt_list", default=["train", "test", "val"])
-        self.parser.add_argument("--random_seed", default=3)
-        self.parser.add_argument("--init_type", default="bert")
-        self.parser.add_argument("--device", default=torch.device(
+        self.parser.add_argument("--tvt_list", type=list, default=["train", "test", "val"])
+        self.parser.add_argument("--random_seed", type=int, default=3)
+        self.parser.add_argument("--use_lemma", type=bool, default=True)
+        self.parser.add_argument("--remove_stop_words", type=bool, default=True)
+        self.parser.add_argument("--min_occurrence", type=int, default=3)
+        self.parser.add_argument("--window_size", type=int, default=5)
+        self.parser.add_argument("--init_type", type=str, default="bert")
+        self.parser.add_argument("--device", type=str, default=torch.device(
             "cuda:1" if torch.cuda.is_available() else "cpu"), help="")
 
     def add_path(self) -> None:
