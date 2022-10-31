@@ -1,5 +1,6 @@
 from functools import partial
 import torch
+import logging
 import torch.utils.data as Data
 from ignite.engine import Engine, Events
 from ignite.metrics import Accuracy, Loss, RunningAverage
@@ -155,6 +156,7 @@ class DeepModel:
                 nodes_features.append(output)
             nodes_features = torch.cat(nodes_features, axis=0)
         self.graph.x[doc_mask] = nodes_features
+        print("Node features are updated")
 
     def save_best_epoch_only(self, engine):
         epoch = engine.state.epoch

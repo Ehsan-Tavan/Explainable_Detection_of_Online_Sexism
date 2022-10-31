@@ -1,16 +1,15 @@
 # -*- coding: utf-8 -*-
 # ========================================================
 """
-    Clustering Project:
-        data loader:
-            data_reader
+    Explainable Detection of Online Sexism Project:
+        utils:
+           helper.py
 """
 
 # ============================ Third Party libs ============================
 from math import log
 from typing import List
 import spacy
-import torch
 from sklearn.metrics import accuracy_score, f1_score
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
@@ -129,14 +128,29 @@ def create_mask(num_samples: int, doc_id_chunks: List[list]):
     return mask_ids
 
 
-def filtered_infrequent_vocabs(vocabs, vocab2frequency, min_occurrence=3):
-    bad_vocabs = [vocab for vocab, count in vocab2frequency.items() if count < min_occurrence]
-    return list(filter(lambda vocab: vocab not in bad_vocabs, vocabs))
+def filtered_infrequent_vocabs(vocab2frequency: dict, min_occurrence: int = 3) -> list:
+    """
+
+    Args:
+        vocab2frequency:
+        min_occurrence:
+
+    Returns:
+
+    """
+    return [vocab for vocab, count in vocab2frequency.items() if count > min_occurrence]
 
 
-def remove_stop_words_from_vocabs(vocabs):
-    en = spacy.load('../assets/en_core_web_sm')
-    stopwords = list(en.Defaults.stop_words)
+def remove_stop_words_from_vocabs(vocabs: list, stopwords: list) -> list:
+    """
+
+    Args:
+        vocabs:
+        stopwords:
+
+    Returns:
+
+    """
     return list(filter(lambda vocab: vocab not in stopwords, vocabs))
 
 
