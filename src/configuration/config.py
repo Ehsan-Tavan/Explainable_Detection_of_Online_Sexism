@@ -70,6 +70,8 @@ class BaseConfig:
         self.parser.add_argument("--sbert_model", type=str,
                                  default="../assets/pretrained_models/"
                                          "distiluse-base-multilingual-cased-v2")
+        self.parser.add_argument("--lm_model_path", type=str,
+                                 default="/home/LanguageModels/xlm-roberta-base")
         self.parser.add_argument("--spacy_model_path", type=str,
                                  default="../assets/en_core_web_sm")
 
