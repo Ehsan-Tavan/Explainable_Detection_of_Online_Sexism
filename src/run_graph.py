@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
 """
-    Clustering Project:
+    Explainable Detection of Online Sexism Project:
         src:
-            runner
+            run_graph.py
 """
 # ============================ Third Party libs ============================
 import os
@@ -19,7 +19,9 @@ from sentence_transformers import SentenceTransformer
 # ============================ My packages ============================
 from configuration import BaseConfig
 from data_loader import read_csv
-from utils import AdjacencyMatrixBuilder, GraphBuilder, DeepModel
+from graph_constructor import GraphBuilder, SemanticAdjacencyMatrixBuilder, \
+    SyntacticAdjacencyMatrixBuilder, SequentialAdjacencyMatrixBuilder
+from utils import DeepModel
 from models import GCNModel
 
 # ========================================================================
@@ -39,37 +41,57 @@ if __name__ == "__main__":
                          names=ARGS.test_customized_headers)
 
     SBERT_MODEL = SentenceTransformer(ARGS.sbert_model)
-    TOKENIZER = transformers.XLMRobertaTokenizer.from_pretrained(
-        "/home/LanguageModels/xlm-roberta-base")
+    TOKENIZER = transformers.XLMRobertaTokenizer.from_pretrained(ARGS.lm_model_path)
+    LM_MODEL = transformers.XLMRobertaModel.from_pretrained(ARGS.lm_model_path)
 
-    BERT_MODEL = transformers.XLMRobertaModel.from_pretrained(
-        "/home/LanguageModels/xlm-roberta-base")
+    SEQUENTIAL_ADJACENCY_BUILDER_OBJ = SequentialAdjacencyMatrixBuilder(
+        docs=list(TRAIN_DATA.text) + list(TEST_DATA.text), arg=ARGS, use_lemma=ARGS.use_lemma,
+        remove_stop_words=ARGS.remove_stop_words,
+        remove_infrequent_vocabs=ARGS.remove_infrequent_vocabs,
+        min_occurrence=ARGS.min_occurrence, window_size=ARGS.window_size)
+    SEQUENTIAL_ADJACENCY_BUILDER_OBJ.setup()
 
-    ADJACENCY_BUILDER_OBJ = AdjacencyMatrixBuilder(
-        docs=list(TRAIN_DATA.text) + list(TEST_DATA.text),
-        window_size=ARGS.window_size, args=ARGS)
+    SYNTACTIC_ADJACENCY_BUILDER_OBJ = SyntacticAdjacencyMatrixBuilder(
+        docs=list(TRAIN_DATA.text) + list(TEST_DATA.text), arg=ARGS, use_lemma=ARGS.use_lemma,
+        remove_stop_words=ARGS.remove_stop_words,
+        remove_infrequent_vocabs=ARGS.remove_infrequent_vocabs,
+        min_occurrence=ARGS.min_occurrence)
+    SYNTACTIC_ADJACENCY_BUILDER_OBJ.setup()
+
+    SEMANTIC_ADJACENCY_BUILDER_OBJ = SemanticAdjacencyMatrixBuilder(
+        docs=list(TRAIN_DATA.text) + list(TEST_DATA.text), arg=ARGS,
+        lm_model_path=ARGS.lm_model_path, use_lemma=ARGS.use_lemma,
+        remove_stop_words=ARGS.remove_stop_words,
+        remove_infrequent_vocabs=ARGS.remove_infrequent_vocabs, min_occurrence=ARGS.min_occurrence)
+    SEMANTIC_ADJACENCY_BUILDER_OBJ.setup()
 
     if not os.path.exists(ARGS.adjacency_file_path):
-        ADJACENCY_MATRIX = ADJACENCY_BUILDER_OBJ.build_adjacency_matrix()
+        INFO_NAME2ADJACENCY_MATRIX = {
+            "sequential": SEQUENTIAL_ADJACENCY_BUILDER_OBJ.build_adjacency_matrix(),
+            "syntactic": SYNTACTIC_ADJACENCY_BUILDER_OBJ.build_adjacency_matrix(),
+            "semantic": SEMANTIC_ADJACENCY_BUILDER_OBJ.build_adjacency_matrix()}
 
         with open(ARGS.adjacency_file_path, "wb") as outfile:
-            pickle.dump(ADJACENCY_MATRIX, outfile)
+            pickle.dump(INFO_NAME2ADJACENCY_MATRIX, outfile)
     else:
         with open(ARGS.adjacency_file_path, "rb") as file:
-            ADJACENCY_MATRIX = pickle.load(file)
+            INFO_NAME2ADJACENCY_MATRIX = pickle.load(file)
 
-    graph_builder_obj = GraphBuilder(adjacency_matrix=ADJACENCY_MATRIX,
-                                     labels=list(TRAIN_DATA.label_sexist),
-                                     nod_id2node_value=ADJACENCY_BUILDER_OBJ.nod_id2node_value,
-                                     num_test=len(TEST_DATA),
-                                     id2doc=ADJACENCY_BUILDER_OBJ.index2doc)
+    graph_builder_obj = GraphBuilder(
+        info_name2adjacency_matrix=INFO_NAME2ADJACENCY_MATRIX,
+        labels=list(TRAIN_DATA.label_sexist),
+        nod_id2node_value=list(INFO_NAME2ADJACENCY_MATRIX.values())[0].nod_id2node_value,
+        num_test=len(TEST_DATA),
+        id2doc=list(INFO_NAME2ADJACENCY_MATRIX.values())[0].index2doc
+    )
+
     graph_builder_obj.init_node_features(mode=ARGS.init_type, sbert_model=SBERT_MODEL,
-                                         tokenizer=TOKENIZER, bert_model=BERT_MODEL)
+                                         tokenizer=TOKENIZER, bert_model=LM_MODEL)
     data_masks = graph_builder_obj.split_data(dev_size=ARGS.dev_size)
     GRAPH = graph_builder_obj.get_pyg_graph(data_masks)
 
     torch.manual_seed(12345)
-    MODEL = GCNModel(bert_model=BERT_MODEL,
+    MODEL = GCNModel(bert_model=LM_MODEL,
                      num_feature=768,
                      hidden_dim=256,
                      num_classes=len(set(graph_builder_obj.labels)) - 2)
@@ -99,9 +121,9 @@ if __name__ == "__main__":
 
     # OPTIMIZER = torch.optim.Adam(MODEL.parameters(), lr=0.0001, weight_decay=5e-4)
     OPTIMIZER = torch.optim.Adam([
-        {'params': MODEL.lm_model.parameters(), 'lr': 1e-5},
-        {'params': MODEL.classifier.parameters(), 'lr': 1e-3},
-        {'params': MODEL.gnn_model.parameters(), 'lr': 1e-3},
+        {"params": MODEL.lm_model.parameters(), "lr": 1e-5},
+        {"params": MODEL.classifier.parameters(), "lr": 1e-3},
+        {"params": MODEL.gnn_model.parameters(), "lr": 1e-3},
     ], lr=1e-3
     )
 
