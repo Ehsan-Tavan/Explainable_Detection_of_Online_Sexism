@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # ========================================================
 """
-    Clustering Project:
+    Explainable Detection of Online Sexism Project:
         data loader:
             data_reader
 """
