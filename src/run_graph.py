@@ -9,7 +9,7 @@
 import os
 import numpy as np
 import pickle
-
+import logging
 import torch
 import transformers
 import torch.utils.data as Data
@@ -26,46 +26,62 @@ from models import GCNModel
 
 # ========================================================================
 
+# logging.basicConfig(level=logging.DEBUG)
 
 if __name__ == "__main__":
     CONFIG_CLASS = BaseConfig()
     ARGS = CONFIG_CLASS.get_config()
 
     # Load data
+    print("Loading train data ...")
     TRAIN_DATA = read_csv(os.path.join(ARGS.raw_data_dir, ARGS.train_data_file),
                           columns=ARGS.data_headers,
                           names=ARGS.customized_headers)
-
+    print("train set contain %s sample ...", len(TRAIN_DATA))
+    print("Loading test data ...")
     TEST_DATA = read_csv(os.path.join(ARGS.raw_data_dir, ARGS.test_data_file),
                          columns=ARGS.test_data_headers,
                          names=ARGS.test_customized_headers)
+    print("test set contain %s sample ...", len(TEST_DATA))
 
+    print("loading sbert ...")
     SBERT_MODEL = SentenceTransformer(ARGS.sbert_model)
     TOKENIZER = transformers.XLMRobertaTokenizer.from_pretrained(ARGS.lm_model_path)
+    logging.info("loading LM tokenizer ...")
     LM_MODEL = transformers.XLMRobertaModel.from_pretrained(ARGS.lm_model_path)
+    print("loading LM model ...")
 
+    print("Creating sequential adjacency builder ...")
     SEQUENTIAL_ADJACENCY_BUILDER_OBJ = SequentialAdjacencyMatrixBuilder(
-        docs=list(TRAIN_DATA.text) + list(TEST_DATA.text), arg=ARGS, use_lemma=ARGS.use_lemma,
+        docs=list(TRAIN_DATA.text) + list(TEST_DATA.text), arg=ARGS, logger=logging,
+        use_lemma=ARGS.use_lemma,
         remove_stop_words=ARGS.remove_stop_words,
         remove_infrequent_vocabs=ARGS.remove_infrequent_vocabs,
         min_occurrence=ARGS.min_occurrence, window_size=ARGS.window_size)
     SEQUENTIAL_ADJACENCY_BUILDER_OBJ.setup()
+    print("Sequential adjacency setup completed ...")
 
+    print("Creating syntactic adjacency builder ...")
     SYNTACTIC_ADJACENCY_BUILDER_OBJ = SyntacticAdjacencyMatrixBuilder(
-        docs=list(TRAIN_DATA.text) + list(TEST_DATA.text), arg=ARGS, use_lemma=ARGS.use_lemma,
+        docs=list(TRAIN_DATA.text) + list(TEST_DATA.text), arg=ARGS, logger=logging,
+        use_lemma=ARGS.use_lemma,
         remove_stop_words=ARGS.remove_stop_words,
         remove_infrequent_vocabs=ARGS.remove_infrequent_vocabs,
         min_occurrence=ARGS.min_occurrence)
     SYNTACTIC_ADJACENCY_BUILDER_OBJ.setup()
+    print("Syntactic adjacency setup completed ...")
 
+    print("Creating semantic adjacency builder ...")
     SEMANTIC_ADJACENCY_BUILDER_OBJ = SemanticAdjacencyMatrixBuilder(
-        docs=list(TRAIN_DATA.text) + list(TEST_DATA.text), arg=ARGS,
+        docs=list(TRAIN_DATA.text) + list(TEST_DATA.text), arg=ARGS, logger=logging,
         lm_model_path=ARGS.lm_model_path, use_lemma=ARGS.use_lemma,
         remove_stop_words=ARGS.remove_stop_words,
         remove_infrequent_vocabs=ARGS.remove_infrequent_vocabs, min_occurrence=ARGS.min_occurrence)
     SEMANTIC_ADJACENCY_BUILDER_OBJ.setup()
+    print("Semantic adjacency setup completed ...")
 
     if not os.path.exists(ARGS.adjacency_file_path):
+        print("Building Adjacency matrices ...")
         INFO_NAME2ADJACENCY_MATRIX = {
             "sequential": SEQUENTIAL_ADJACENCY_BUILDER_OBJ.build_adjacency_matrix(),
             "syntactic": SYNTACTIC_ADJACENCY_BUILDER_OBJ.build_adjacency_matrix(),
@@ -74,20 +90,27 @@ if __name__ == "__main__":
         with open(ARGS.adjacency_file_path, "wb") as outfile:
             pickle.dump(INFO_NAME2ADJACENCY_MATRIX, outfile)
     else:
+        print("Loading adjacency matrices ...")
         with open(ARGS.adjacency_file_path, "rb") as file:
             INFO_NAME2ADJACENCY_MATRIX = pickle.load(file)
 
+    print("Creating graph builder ...")
     graph_builder_obj = GraphBuilder(
         info_name2adjacency_matrix=INFO_NAME2ADJACENCY_MATRIX,
         labels=list(TRAIN_DATA.label_sexist),
-        nod_id2node_value=list(INFO_NAME2ADJACENCY_MATRIX.values())[0].nod_id2node_value,
+        nod_id2node_value=SEQUENTIAL_ADJACENCY_BUILDER_OBJ.nod_id2node_value,
         num_test=len(TEST_DATA),
-        id2doc=list(INFO_NAME2ADJACENCY_MATRIX.values())[0].index2doc
+        id2doc=SEQUENTIAL_ADJACENCY_BUILDER_OBJ.index2doc
     )
 
+    print("Initializing node features ...")
     graph_builder_obj.init_node_features(mode=ARGS.init_type, sbert_model=SBERT_MODEL,
                                          tokenizer=TOKENIZER, bert_model=LM_MODEL)
+
+    print("Creating data masks ...")
     data_masks = graph_builder_obj.split_data(dev_size=ARGS.dev_size)
+
+    print("Creating data masks ...")
     GRAPH = graph_builder_obj.get_pyg_graph(data_masks)
 
     torch.manual_seed(12345)
