@@ -42,11 +42,11 @@ class BaseConfig:
         self.parser.add_argument("--random_seed", type=int, default=3)
         self.parser.add_argument("--use_lemma", type=bool, default=True)
         self.parser.add_argument("--remove_stop_words", type=bool, default=True)
+        self.parser.add_argument("--remove_infrequent_vocabs", type=bool, default=True)
         self.parser.add_argument("--min_occurrence", type=int, default=3)
-        self.parser.add_argument("--window_size", type=int, default=5)
         self.parser.add_argument("--init_type", type=str, default="bert")
         self.parser.add_argument("--device", type=str, default=torch.device(
-            "cuda:1" if torch.cuda.is_available() else "cpu"), help="")
+            "cuda:0" if torch.cuda.is_available() else "cpu"), help="")
 
     def add_path(self) -> None:
         """
@@ -71,6 +71,19 @@ class BaseConfig:
                                  default="../assets/filtered_vocabs.pkl")
         self.parser.add_argument("--windows_path", type=str,
                                  default="../assets/windows.pkl")
+        self.parser.add_argument("--semantic_word_to_word_edge_weight_path", type=str,
+                                 default="../assets/semantic_word_to_word_edge_weight.pkl")
+        self.parser.add_argument("--semantic_word_to_doc_edge_weight_path", type=str,
+                                 default="../assets/semantic_word_to_doc_edge_weight.pkl")
+        self.parser.add_argument("--syntactic_word_to_word_edge_weight_path", type=str,
+                                 default="../assets/syntactic_word_to_word_edge_weight.pkl")
+        self.parser.add_argument("--syntactic_word_to_doc_edge_weight_path", type=str,
+                                 default="../assets/syntactic_word_to_doc_edge_weight.pkl")
+        self.parser.add_argument("--sequential_word_to_word_edge_weight_path", type=str,
+                                 default="../assets/sequential_word_to_word_edge_weight.pkl")
+        self.parser.add_argument("--sequential_word_to_doc_edge_weight_path", type=str,
+                                 default="../assets/sequential_word_to_doc_edge_weight.pkl")
+
         self.parser.add_argument("--sbert_model", type=str,
                                  default="../assets/pretrained_models/"
                                          "distiluse-base-multilingual-cased-v2")
