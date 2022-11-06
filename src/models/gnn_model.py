@@ -21,7 +21,8 @@ class GraphModel(torch.nn.Module):
 
     def forward(self, graph, index):
         x = graph.x
-        edge_index, edge_attr = dropout_adj(edge_index=graph.edge_index, edge_attr=graph.edge_attr,
+        edge_index, edge_attr = dropout_adj(edge_index=graph.sequential_edge_index,
+                                            edge_attr=graph.edge_attr,
                                             p=0.3, training=self.training)
         x = self.conv1(x, edge_index, edge_attr)
         x = torch.nn.ReLU()(x)
