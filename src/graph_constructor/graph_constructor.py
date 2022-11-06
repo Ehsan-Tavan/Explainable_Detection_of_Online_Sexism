@@ -107,12 +107,12 @@ class GraphBuilder:
                 syntactic_edge_index = torch.stack([row, col], dim=0)
                 syntactic_edge_weight = torch.from_numpy(adj.data).to(torch.float)
                 pyg_graph.syntactic_edge_attr = syntactic_edge_weight
-                pyg_graph.sequential_edge_index = syntactic_edge_index
+                pyg_graph.syntactic_edge_index = syntactic_edge_index
 
             elif "semantic" in info_name:
                 semantic_edge_index = torch.stack([row, col], dim=0)
                 semantic_edge_weight = torch.from_numpy(adj.data).to(torch.float)
                 pyg_graph.semantic_edge_attr = semantic_edge_weight
-                pyg_graph.sequential_edge_index = semantic_edge_index
+                pyg_graph.semantic_edge_index = semantic_edge_index
 
         return pyg_graph
