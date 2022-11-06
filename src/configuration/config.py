@@ -23,6 +23,7 @@ class BaseConfig:
 
     def __init__(self):
         self.parser = argparse.ArgumentParser()
+        self.parser.add_argument("--model_name", type=str, default="Bert")
         self.parser.add_argument("--data_headers", type=list,
                                  default=["rewire_id", "text", "label_sexist", "label_category",
                                           "label_vector"])
@@ -45,6 +46,10 @@ class BaseConfig:
         self.parser.add_argument("--remove_infrequent_vocabs", type=bool, default=True)
         self.parser.add_argument("--min_occurrence", type=int, default=3)
         self.parser.add_argument("--init_type", type=str, default="bert")
+        self.parser.add_argument("--lr", type=float, default=2e-5)
+        self.parser.add_argument("--n_epochs", type=int, default=20)
+        self.parser.add_argument("--train_batch_size", type=int, default=64)
+        self.parser.add_argument("--num_workers", type=int, default=8)
         self.parser.add_argument("--device", type=str, default=torch.device(
             "cuda:0" if torch.cuda.is_available() else "cpu"), help="")
 
@@ -88,9 +93,12 @@ class BaseConfig:
                                  default="../assets/pretrained_models/"
                                          "distiluse-base-multilingual-cased-v2")
         self.parser.add_argument("--lm_model_path", type=str,
-                                 default="/home/LanguageModels/xlm-roberta-base")
+                                 default="/home/LanguageModels/bert_large_uncased")
         self.parser.add_argument("--spacy_model_path", type=str,
                                  default="../assets/en_core_web_sm")
+        self.parser.add_argument("--saved_model_dir", type=str,
+                                 default=Path(__file__).parents[
+                                             2].__str__() + "/assets/saved_models/")
 
     def get_config(self):
         """
