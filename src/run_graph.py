@@ -37,12 +37,12 @@ if __name__ == "__main__":
     TRAIN_DATA = read_csv(os.path.join(ARGS.raw_data_dir, ARGS.train_data_file),
                           columns=ARGS.data_headers,
                           names=ARGS.customized_headers)
-    print("train set contain %s sample ...", len(TRAIN_DATA))
+    print("train set contain %s sample ..." % len(TRAIN_DATA))
     print("Loading test data ...")
     TEST_DATA = read_csv(os.path.join(ARGS.raw_data_dir, ARGS.test_data_file),
                          columns=ARGS.test_data_headers,
                          names=ARGS.test_customized_headers)
-    print("test set contain %s sample ...", len(TEST_DATA))
+    print("test set contain %s sample ..." % len(TEST_DATA))
 
     print("loading sbert ...")
     SBERT_MODEL = SentenceTransformer(ARGS.sbert_model)

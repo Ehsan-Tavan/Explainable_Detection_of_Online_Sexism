@@ -10,7 +10,7 @@
 import torch
 import pytorch_lightning as pl
 from transformers import AutoModel
-import torchmetrics
+from torchmetrics import F1, Accuracy
 
 
 class Classifier(pl.LightningModule):
@@ -18,7 +18,7 @@ class Classifier(pl.LightningModule):
     lm classifier
     """
 
-    def __init__(self, num_classes, class_weights):
+    def __init__(self, lm_model_path, num_classes, class_weights, lr=2e-5):
         """
 
         Args:
@@ -27,13 +27,14 @@ class Classifier(pl.LightningModule):
         """
         super().__init__()
 
-        self.model = AutoModel.from_pretrained(self.args.lm_model_path)
-        self.classifier = torch.nn.Linear(self.model.args.d_model, num_classes)
+        self.model = AutoModel.from_pretrained(lm_model_path)
+        self.classifier = torch.nn.Linear(self.model.config.hidden_size, num_classes)
         self.loss = torch.nn.CrossEntropyLoss(weight=class_weights)
+        self.lr = lr
 
-        self.accuracy = torchmetrics.Accuracy()
-        self.F_score = torchmetrics.F1(average="none", num_classes=num_classes)
-        self.F_score_total = torchmetrics.F1(average="weighted", num_classes=num_classes)
+        self.accuracy = Accuracy()
+        self.F_score = F1(average="none", num_classes=num_classes)
+        self.F_score_total = F1(average="weighted", num_classes=num_classes)
 
         self.save_hyperparameters()
 
@@ -49,7 +50,7 @@ class Classifier(pl.LightningModule):
 
         model_output = self.model(
             input_ids=batch["inputs_ids"],
-            attention_mask=batch["attention_mask"]).last_hidden_state.permute(0, 2, 1)
+            attention_mask=batch["attention_mask"]).pooler_output
         return self.classifier(model_output)
 
     def training_step(self, batch, _):

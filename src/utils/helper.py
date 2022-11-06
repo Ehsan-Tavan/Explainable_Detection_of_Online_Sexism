@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
 import torch
 from ignite.metrics import Metric
+from sklearn import preprocessing
 from ignite.metrics.metric import sync_all_reduce, reinit__is_reduced
 
 
@@ -188,3 +189,9 @@ class F1Score(Metric):
     @sync_all_reduce("_num_examples", "_num_correct:SUM")
     def compute(self):
         return self.f1 / self.count
+
+
+def make_labels(labels):
+    label_encoder = preprocessing.LabelEncoder()
+    label_encoder.fit(labels)
+    return label_encoder
