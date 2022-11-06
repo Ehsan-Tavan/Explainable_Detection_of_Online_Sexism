@@ -18,7 +18,7 @@ class Classifier(pl.LightningModule):
     lm classifier
     """
 
-    def __init__(self, lm_model_path, num_classes, class_weights, lr=2e-5):
+    def __init__(self, lm_model_path, num_classes, class_weights, dropout_rate=0.3, lr=2e-5):
         """
 
         Args:
@@ -28,6 +28,7 @@ class Classifier(pl.LightningModule):
         super().__init__()
 
         self.model = AutoModel.from_pretrained(lm_model_path)
+        self.dropout = torch.nn.Dropout(dropout_rate)
         self.classifier = torch.nn.Linear(self.model.config.hidden_size, num_classes)
         self.loss = torch.nn.CrossEntropyLoss(weight=class_weights)
         self.lr = lr
@@ -51,6 +52,7 @@ class Classifier(pl.LightningModule):
         model_output = self.model(
             input_ids=batch["inputs_ids"],
             attention_mask=batch["attention_mask"]).pooler_output
+        model_output = self.dropout(model_output)
         return self.classifier(model_output)
 
     def training_step(self, batch, _):
