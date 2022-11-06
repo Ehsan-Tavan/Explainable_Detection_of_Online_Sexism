@@ -15,6 +15,7 @@ import os
 from abc import abstractmethod, ABC
 from typing import List
 import transformer_embedder as tre
+import pickle
 from sklearn.metrics.pairwise import cosine_similarity
 
 # ============================ My packages ============================
@@ -24,7 +25,7 @@ from data_loader import read_pickle, write_pickle
 
 
 class AdjacencyMatrixBuilder(ABC):
-    def __init__(self, docs: List[str], arg, use_lemma: bool = True,
+    def __init__(self, docs: List[str], arg, logger, use_lemma: bool = True,
                  remove_stop_words: bool = True, remove_infrequent_vocabs: bool = True,
                  min_occurrence: int = 3, window_size: int = 5, *args, **kwargs):
         self.docs = docs
@@ -32,6 +33,7 @@ class AdjacencyMatrixBuilder(ABC):
         self.use_lemma = use_lemma
         self.remove_stop_words = remove_stop_words
         self.remove_infrequent_vocabs = remove_infrequent_vocabs
+        self.logger = logger
         self.min_occurrence = min_occurrence
         self.window_size = window_size
 
@@ -61,17 +63,22 @@ class AdjacencyMatrixBuilder(ABC):
 
         """
         if os.path.exists(self.arg.filtered_vocabs_path):
+            self.logger.info("Loading filtered_vocabs ...")
             self.filtered_vocabs = read_pickle(self.arg.filtered_vocabs_path)
         else:
+            self.logger.info("Starting filtered_vocabs ...")
             if self.remove_stop_words:
+                self.logger.info("Starting remove stop words ...")
                 stopwords = list(self.nlp.Defaults.stop_words)
                 self.filtered_vocabs = remove_stop_words_from_vocabs(self.filtered_vocabs,
                                                                      stopwords)
             if self.remove_infrequent_vocabs:
+                self.logger.info("Starting remove infrequent vocabs ...")
                 self.filtered_vocabs = filtered_infrequent_vocabs(
                     vocab2frequency,
                     min_occurrence=self.min_occurrence)
             if self.use_lemma:
+                self.logger.info("Starting change token to it's lemma ...")
                 for index, word in enumerate(self.filtered_vocabs):
                     text = self.nlp(word)
                     for tok in text:
@@ -247,28 +254,31 @@ class AdjacencyMatrixBuilder(ABC):
         for doc in tqdm(self.docs):
             text = self.nlp(doc)
             for first_index in range(1, len(text)):
-                for second_index in range(first_index):
-                    word_pair2sentence_count[
-                        (self.word2index[text[first_index].lemma_.lower()],
-                         self.word2index[text[second_index].lemma_.lower()])] += 1
-                    word_pair2sentence_count[
-                        (self.word2index[text[second_index].lemma_.lower()],
-                         self.word2index[text[first_index].lemma_.lower()])] += 1
+                if text[first_index].lemma_.lower() in self.filtered_vocabs:
+                    for second_index in range(first_index):
+                        if text[second_index].lemma_.lower() in self.filtered_vocabs:
+                            word_pair2sentence_count[
+                                (self.word2index[text[first_index].lemma_.lower()],
+                                 self.word2index[text[second_index].lemma_.lower()])] += 1
+                            word_pair2sentence_count[
+                                (self.word2index[text[second_index].lemma_.lower()],
+                                 self.word2index[text[first_index].lemma_.lower()])] += 1
         return word_pair2sentence_count
 
 
 class SemanticAdjacencyMatrixBuilder(AdjacencyMatrixBuilder):
 
-    def __init__(self, docs: List[str], arg, lm_model_path, use_lemma: bool = True,
+    def __init__(self, docs: List[str], arg, logger, lm_model_path, use_lemma: bool = True,
                  remove_stop_words: bool = True, remove_infrequent_vocabs: bool = True,
                  min_occurrence: int = 3, window_size: int = 5, similarity_threshold: float = 0.80):
-        super().__init__(docs, arg, use_lemma, remove_stop_words, remove_infrequent_vocabs,
+        super().__init__(docs, arg, logger, use_lemma, remove_stop_words, remove_infrequent_vocabs,
                          min_occurrence, window_size)
         self.docs = docs
         self.arg = arg
-        self.tokenizer = tre.Tokenizer(lm_model_path)
+        self.logger = logger
+        self.tokenizer = tre.Tokenizer(lm_model_path, language=self.arg.spacy_model_path)
         self.model = tre.TransformerEmbedder(lm_model_path, subtoken_pooling="last",
-                                             output_layer="last")
+                                             output_layer="last", )
         self.use_lemma = use_lemma
         self.remove_stop_words = remove_stop_words
         self.remove_infrequent_vocabs = remove_infrequent_vocabs
@@ -283,13 +293,20 @@ class SemanticAdjacencyMatrixBuilder(AdjacencyMatrixBuilder):
         self.nod_id2node_value = {}
 
     def setup(self):
+        self.logger.info("Creating vocab2frequency ...")
         vocab2frequency = self.build_word_counter()
         self.filter_vocabs(vocab2frequency)
+        self.logger.info("Creating nod_id2node_value ...")
         self.nod_id2node_value = {idx: data for idx, data in
                                   enumerate(self.docs + self.filtered_vocabs)}
 
+        self.logger.info("Creating word2index ...")
         self.build_word2index(self.filtered_vocabs)
+
+        self.logger.info("Creating index2word ...")
         self.build_index2word(self.filtered_vocabs)
+
+        self.logger.info("Creating index2word ...")
         self.build_index2doc()
 
     def build_word_pair2semantic_relation_count(self):
@@ -300,20 +317,25 @@ class SemanticAdjacencyMatrixBuilder(AdjacencyMatrixBuilder):
         """
         word_pair2semantic_relation_count = defaultdict(int)
         for doc in tqdm(self.docs):
-            tokenized_text = self.tokenizer(doc, return_tensors=True)
-            outputs = self.model(**tokenized_text).word_embeddings.squeeze()[1:-1]
+            tokenized_text = self.tokenizer(doc, return_tensors=True, use_spacy=True)
+            outputs = self.model(**tokenized_text).word_embeddings.squeeze()[1:-1].detach().numpy()
             word_similarity_matrix = cosine_similarity(outputs, outputs)
             text = self.nlp(doc)
             assert len(text) == len(outputs)
             for similarity_index, token in enumerate(text):
-                for token_index, similarity in enumerate(word_similarity_matrix[similarity_index]):
-                    if similarity > self.similarity_threshold:
-                        word_pair2semantic_relation_count[
-                            (self.word2index[token.lemma_.lower()],
-                             self.word2index[text[token_index].lemma_.lower()])] += 1
-                        word_pair2semantic_relation_count[
-                            (self.word2index[text[token_index].lemma_.lower()],
-                             self.word2index[token.lemma_.lower()])] += 1
+                if token.lemma_.lower() in self.filtered_vocabs:
+                    for token_index, similarity in enumerate(
+                            word_similarity_matrix[similarity_index]):
+                        if (text[token_index].lemma_.lower() in self.filtered_vocabs) and \
+                                (similarity > self.similarity_threshold) and (
+                                similarity_index != token_index):
+                            word_pair2semantic_relation_count[
+                                (self.word2index[token.lemma_.lower()],
+                                 self.word2index[text[token_index].lemma_.lower()])] += 1
+                            word_pair2semantic_relation_count[
+                                (self.word2index[text[token_index].lemma_.lower()],
+                                 self.word2index[token.lemma_.lower()])] += 1
+
         return word_pair2semantic_relation_count
 
     def build_word_to_word_edge_weight(self, word_pair2semantic_relation_count: dict,
@@ -348,25 +370,44 @@ class SemanticAdjacencyMatrixBuilder(AdjacencyMatrixBuilder):
 
         """
         num_docs = len(self.docs)
-        word_pair2semantic_relation_count = self.build_word_pair2semantic_relation_count()
-        word_pair2sentence_count = self.build_word_pair2sentence_count()
 
-        word_to_word_rows, word_to_word_columns, word_to_word_weights = \
-            self.build_word_to_word_edge_weight(word_pair2semantic_relation_count,
-                                                word_pair2sentence_count, num_docs)
+        if not os.path.exists(self.arg.semantic_word_to_word_edge_weight_path):
+            self.logger.info("Creating semantic_word_to_word_edge_weight ...")
+            word_pair2semantic_relation_count = self.build_word_pair2semantic_relation_count()
+            word_pair2sentence_count = self.build_word_pair2sentence_count()
+            word_to_word_rows, word_to_word_columns, word_to_word_weights = \
+                self.build_word_to_word_edge_weight(word_pair2semantic_relation_count,
+                                                    word_pair2sentence_count, num_docs)
+            with open(self.arg.semantic_word_to_word_edge_weight_path, "wb") as outfile:
+                pickle.dump([word_to_word_rows, word_to_word_columns, word_to_word_weights],
+                            outfile)
+        else:
+            with open(self.arg.semantic_word_to_word_edge_weight_path, "rb") as file:
+                word_to_word_rows, word_to_word_columns, word_to_word_weights = \
+                    pickle.load(file)
 
-        doc_word2frequency = self.build_doc_word2frequency()
-        word2doc_ids = self.build_word2doc_ids()
-        word2docs_frequency = self.build_word2docs_frequency(word2doc_ids)
+        if not os.path.exists(self.arg.semantic_word_to_doc_edge_weight_path):
+            self.logger.info("Creating semantic_word_to_doc_edge_weight ...")
+            doc_word2frequency = self.build_doc_word2frequency()
+            word2doc_ids = self.build_word2doc_ids()
+            word2docs_frequency = self.build_word2docs_frequency(word2doc_ids)
 
-        word_to_doc_rows, word_to_doc_columns, word_to_doc_weights = \
-            self.build_word_to_doc_edge_weight(doc_word2frequency, word2docs_frequency, num_docs)
+            word_to_doc_rows, word_to_doc_columns, word_to_doc_weights = \
+                self.build_word_to_doc_edge_weight(doc_word2frequency, word2docs_frequency,
+                                                   num_docs)
+            with open(self.arg.semantic_word_to_doc_edge_weight_path, "wb") as outfile:
+                pickle.dump([word_to_doc_rows, word_to_doc_columns, word_to_doc_weights],
+                            outfile)
+        else:
+            with open(self.arg.semantic_word_to_doc_edge_weight_path, "rb") as file:
+                word_to_doc_rows, word_to_doc_columns, word_to_doc_weights = \
+                    pickle.load(file)
 
         rows = word_to_word_rows + word_to_doc_rows
         columns = word_to_word_columns + word_to_doc_columns
         weights = word_to_word_weights + word_to_doc_weights
 
-        number_nodes = num_docs + len(self.word2index)
+        number_nodes = num_docs + len(rows)
         adj_mat = sp.csr_matrix((weights, (rows, columns)), shape=(number_nodes, number_nodes))
         adjacency_matrix = adj_mat + adj_mat.T.multiply(adj_mat.T > adj_mat) - adj_mat.multiply(
             adj_mat.T > adj_mat)
@@ -375,13 +416,14 @@ class SemanticAdjacencyMatrixBuilder(AdjacencyMatrixBuilder):
 
 class SyntacticAdjacencyMatrixBuilder(AdjacencyMatrixBuilder):
 
-    def __init__(self, docs: List[str], arg, use_lemma: bool = True,
+    def __init__(self, docs: List[str], arg, logger, use_lemma: bool = True,
                  remove_stop_words: bool = True, remove_infrequent_vocabs: bool = True,
                  min_occurrence: int = 3, window_size: int = 5):
-        super().__init__(docs, arg, use_lemma, remove_stop_words, remove_infrequent_vocabs,
+        super().__init__(docs, arg, logger, use_lemma, remove_stop_words, remove_infrequent_vocabs,
                          min_occurrence, window_size)
         self.docs = docs
         self.arg = arg
+        self.logger = logger
         self.use_lemma = use_lemma
         self.remove_stop_words = remove_stop_words
         self.remove_infrequent_vocabs = remove_infrequent_vocabs
@@ -396,13 +438,18 @@ class SyntacticAdjacencyMatrixBuilder(AdjacencyMatrixBuilder):
         self.nod_id2node_value = {}
 
     def setup(self):
+        self.logger.info("Creating vocab2frequency ...")
         vocab2frequency = self.build_word_counter()
         self.filter_vocabs(vocab2frequency)
+        self.logger.info("Creating nod_id2node_value ...")
         self.nod_id2node_value = {idx: data for idx, data in
                                   enumerate(self.docs + self.filtered_vocabs)}
 
+        self.logger.info("Creating word2index ...")
         self.build_word2index(self.filtered_vocabs)
+        self.logger.info("Creating index2word ...")
         self.build_index2word(self.filtered_vocabs)
+        self.logger.info("Creating index2doc ...")
         self.build_index2doc()
 
     def build_word_pair2syntactic_relation_count(self):
@@ -415,13 +462,15 @@ class SyntacticAdjacencyMatrixBuilder(AdjacencyMatrixBuilder):
         for doc in tqdm(self.docs):
             text = self.nlp(doc)
             for token in text:
-                for child in token.children:
-                    word_pair2syntactic_relation_count[
-                        (self.word2index[token.lemma_.lower()],
-                         self.word2index[child.lemma_.lower()])] += 1
-                    word_pair2syntactic_relation_count[
-                        (self.word2index[child.lemma_.lower()],
-                         self.word2index[token.lemma_.lower()])] += 1
+                if token.lemma_.lower() in self.filtered_vocabs:
+                    for child in token.children:
+                        if child.lemma_.lower() in self.filtered_vocabs:
+                            word_pair2syntactic_relation_count[
+                                (self.word2index[token.lemma_.lower()],
+                                 self.word2index[child.lemma_.lower()])] += 1
+                            word_pair2syntactic_relation_count[
+                                (self.word2index[child.lemma_.lower()],
+                                 self.word2index[token.lemma_.lower()])] += 1
         return word_pair2syntactic_relation_count
 
     def build_word_to_word_edge_weight(self, word_pair2syntactic_relation_count: dict,
@@ -456,25 +505,43 @@ class SyntacticAdjacencyMatrixBuilder(AdjacencyMatrixBuilder):
 
         """
         num_docs = len(self.docs)
-        word_pair2syntactic_relation_count = self.build_word_pair2syntactic_relation_count()
-        word_pair2sentence_count = self.build_word_pair2syntactic_relation_count()
 
-        word_to_word_rows, word_to_word_columns, word_to_word_weights = \
-            self.build_word_to_word_edge_weight(word_pair2syntactic_relation_count,
-                                                word_pair2sentence_count, num_docs)
+        if not os.path.exists(self.arg.syntactic_word_to_word_edge_weight_path):
+            self.logger.info("Creating syntactic_word_to_word_edge_weight ...")
+            word_pair2syntactic_relation_count = self.build_word_pair2syntactic_relation_count()
+            word_pair2sentence_count = self.build_word_pair2syntactic_relation_count()
+            word_to_word_rows, word_to_word_columns, word_to_word_weights = \
+                self.build_word_to_word_edge_weight(word_pair2syntactic_relation_count,
+                                                    word_pair2sentence_count, num_docs)
+            with open(self.arg.syntactic_word_to_word_edge_weight_path, "wb") as outfile:
+                pickle.dump([word_to_word_rows, word_to_word_columns, word_to_word_weights],
+                            outfile)
+        else:
+            with open(self.arg.syntactic_word_to_word_edge_weight_path, "rb") as file:
+                word_to_word_rows, word_to_word_columns, word_to_word_weights = \
+                    pickle.load(file)
 
-        doc_word2frequency = self.build_doc_word2frequency()
-        word2doc_ids = self.build_word2doc_ids()
-        word2docs_frequency = self.build_word2docs_frequency(word2doc_ids)
-
-        word_to_doc_rows, word_to_doc_columns, word_to_doc_weights = \
-            self.build_word_to_doc_edge_weight(doc_word2frequency, word2docs_frequency, num_docs)
+        if not os.path.exists(self.arg.syntactic_word_to_doc_edge_weight_path):
+            self.logger.info("Creating syntactic_word_to_doc_edge_weight ...")
+            doc_word2frequency = self.build_doc_word2frequency()
+            word2doc_ids = self.build_word2doc_ids()
+            word2docs_frequency = self.build_word2docs_frequency(word2doc_ids)
+            word_to_doc_rows, word_to_doc_columns, word_to_doc_weights = \
+                self.build_word_to_doc_edge_weight(doc_word2frequency, word2docs_frequency,
+                                                   num_docs)
+            with open(self.arg.syntactic_word_to_doc_edge_weight_path, "wb") as outfile:
+                pickle.dump([word_to_doc_rows, word_to_doc_columns, word_to_doc_weights],
+                            outfile)
+        else:
+            with open(self.arg.syntactic_word_to_doc_edge_weight_path, "rb") as file:
+                word_to_doc_rows, word_to_doc_columns, word_to_doc_weights = \
+                    pickle.load(file)
 
         rows = word_to_word_rows + word_to_doc_rows
         columns = word_to_word_columns + word_to_doc_columns
         weights = word_to_word_weights + word_to_doc_weights
 
-        number_nodes = num_docs + len(self.word2index)
+        number_nodes = num_docs + len(rows)
         adj_mat = sp.csr_matrix((weights, (rows, columns)), shape=(number_nodes, number_nodes))
         adjacency_matrix = adj_mat + adj_mat.T.multiply(adj_mat.T > adj_mat) - adj_mat.multiply(
             adj_mat.T > adj_mat)
@@ -482,13 +549,14 @@ class SyntacticAdjacencyMatrixBuilder(AdjacencyMatrixBuilder):
 
 
 class SequentialAdjacencyMatrixBuilder(AdjacencyMatrixBuilder):
-    def __init__(self, docs: List[str], arg, use_lemma: bool = True,
+    def __init__(self, docs: List[str], arg, logger, use_lemma: bool = True,
                  remove_stop_words: bool = True, remove_infrequent_vocabs: bool = True,
                  min_occurrence: int = 3, window_size: int = 5):
-        super().__init__(docs, arg, use_lemma, remove_stop_words, remove_infrequent_vocabs,
+        super().__init__(docs, arg, logger, use_lemma, remove_stop_words, remove_infrequent_vocabs,
                          min_occurrence, window_size)
         self.docs = docs
         self.args = arg
+        self.logger = logger
         self.use_lemma = use_lemma
         self.remove_stop_words = remove_stop_words
         self.remove_infrequent_vocabs = remove_infrequent_vocabs
@@ -505,13 +573,19 @@ class SequentialAdjacencyMatrixBuilder(AdjacencyMatrixBuilder):
         self.nlp = spacy.load(self.args.spacy_model_path)
 
     def setup(self):
+        self.logger.info("Creating vocab2frequency ...")
         vocab2frequency = self.build_word_counter()
         self.filter_vocabs(vocab2frequency)
+        self.logger.info("Creating nod_id2node_value ...")
         self.nod_id2node_value = {idx: data for idx, data in
                                   enumerate(self.docs + self.filtered_vocabs)}
+        self.logger.info("Creating word2index ...")
         self.build_word2index(self.filtered_vocabs)
+        self.logger.info("Creating index2word ...")
         self.build_index2word(self.filtered_vocabs)
+        self.logger.info("Creating index2doc ...")
         self.build_index2doc()
+        self.logger.info("Creating windows ...")
         self.build_windows_of_words()
 
     def build_windows_of_words(self):
@@ -607,6 +681,7 @@ class SequentialAdjacencyMatrixBuilder(AdjacencyMatrixBuilder):
                 rows.append(num_docs + first_word_id)
                 columns.append(num_docs + second_word_id)
                 weights.append(pmi)
+
         return rows, columns, weights
 
     def build_adjacency_matrix(self):
@@ -616,26 +691,47 @@ class SequentialAdjacencyMatrixBuilder(AdjacencyMatrixBuilder):
 
         """
         num_docs = len(self.docs)
-        word_pair2frequency = self.build_word_pair2frequency(self.windows)
-        doc_word2frequency = self.build_doc_word2frequency()
-        word2doc_ids = self.build_word2doc_ids()
-        word2docs_frequency = self.build_word2docs_frequency(word2doc_ids)
-        word2window_frequency = self.build_word2window_frequency(self.windows)
 
-        num_window = len(self.windows)
+        if not os.path.exists(self.arg.sequential_word_to_word_edge_weight_path):
+            self.logger.info("Creating sequential_word_to_word_edge_weight ...")
+            word_pair2frequency = self.build_word_pair2frequency(self.windows)
+            doc_word2frequency = self.build_doc_word2frequency()
+            word2doc_ids = self.build_word2doc_ids()
+            word2docs_frequency = self.build_word2docs_frequency(word2doc_ids)
+            word2window_frequency = self.build_word2window_frequency(self.windows)
 
-        word_to_word_rows, word_to_word_columns, word_to_word_weights = \
-            self.build_word_to_word_edge_weight(num_docs, num_window, word_pair2frequency,
-                                                word2window_frequency)
+            num_window = len(self.windows)
 
-        word_to_doc_rows, word_to_doc_columns, word_to_doc_weights = \
-            self.build_word_to_doc_edge_weight(doc_word2frequency, word2docs_frequency, num_docs)
+            word_to_word_rows, word_to_word_columns, word_to_word_weights = \
+                self.build_word_to_word_edge_weight(num_docs, num_window, word_pair2frequency,
+                                                    word2window_frequency)
+            with open(self.arg.sequential_word_to_word_edge_weight_path, "wb") as outfile:
+                pickle.dump([word_to_word_rows, word_to_word_columns, word_to_word_weights,
+                             doc_word2frequency, word2docs_frequency],
+                            outfile)
+        else:
+            with open(self.arg.sequential_word_to_word_edge_weight_path, "rb") as file:
+                word_to_word_rows, word_to_word_columns, word_to_word_weights, doc_word2frequency, \
+                word2docs_frequency = pickle.load(file)
+
+        if not os.path.exists(self.arg.sequential_word_to_doc_edge_weight_path):
+            self.logger.info("Creating sequential_word_to_doc_edge_weight ...")
+            word_to_doc_rows, word_to_doc_columns, word_to_doc_weights = \
+                self.build_word_to_doc_edge_weight(doc_word2frequency, word2docs_frequency,
+                                                   num_docs)
+            with open(self.arg.sequential_word_to_doc_edge_weight_path, "wb") as outfile:
+                pickle.dump([word_to_doc_rows, word_to_doc_columns, word_to_doc_weights],
+                            outfile)
+        else:
+            with open(self.arg.sequential_word_to_doc_edge_weight_path, "rb") as file:
+                word_to_doc_rows, word_to_doc_columns, word_to_doc_weights = \
+                    pickle.load(file)
 
         rows = word_to_word_rows + word_to_doc_rows
         columns = word_to_word_columns + word_to_doc_columns
         weights = word_to_word_weights + word_to_doc_weights
 
-        number_nodes = num_docs + len(self.word2index)
+        number_nodes = num_docs + len(rows)
         adj_mat = sp.csr_matrix((weights, (rows, columns)), shape=(number_nodes, number_nodes))
         adjacency_matrix = adj_mat + adj_mat.T.multiply(adj_mat.T > adj_mat) - adj_mat.multiply(
             adj_mat.T > adj_mat)
