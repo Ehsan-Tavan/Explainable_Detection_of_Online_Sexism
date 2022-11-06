@@ -8,7 +8,6 @@
 # ============================ Third Party libs ============================
 from typing import List
 import torch
-from sklearn import preprocessing
 
 
 class CustomDataset(torch.utils.data.Dataset):
@@ -18,10 +17,8 @@ class CustomDataset(torch.utils.data.Dataset):
         self.tokenizer = tokenizer
         self.max_len = max_len
 
-    def make_labels(self):
-        label_encoder = preprocessing.LabelEncoder()
-        label_encoder.fit(self.labels)
-        self.labels = label_encoder.transform(self.labels)
+    def __len__(self):
+        return len(self.texts)
 
     def __getitem__(self, item_index):
         text = self.texts[item_index]
@@ -35,6 +32,6 @@ class CustomDataset(torch.utils.data.Dataset):
                                                    truncation=True,
                                                    return_token_type_ids=True)
 
-        return {"inputs_ids": encoded_input["inputs_ids"].flatten(),
+        return {"inputs_ids": encoded_input["input_ids"].flatten(),
                 "attention_mask": encoded_input["attention_mask"],
                 "labels": torch.tensor(label)}
