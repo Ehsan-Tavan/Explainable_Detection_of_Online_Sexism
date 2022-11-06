@@ -84,7 +84,8 @@ if __name__ == "__main__":
 
     # Train the Classifier Model
     MODEL = Classifier(lm_model_path=ARGS.lm_model_path, num_classes=N_CLASSES,
-                       class_weights=torch.Tensor(class_weights), lr=ARGS.lr)
+                       class_weights=torch.Tensor(class_weights), dropout_rate=ARGS.dropout,
+                       lr=ARGS.lr)
 
     TRAINER.fit(MODEL, DATA_MODULE)
     TRAINER.test(ckpt_path="best", datamodule=DATA_MODULE)
