@@ -38,7 +38,7 @@ class BaseConfig:
 
         self.parser.add_argument("--window_size", type=int, default=5)
         self.parser.add_argument("--max_len", type=int, default=100)
-        self.parser.add_argument("--dev_size", type=float, default=0.2)
+        self.parser.add_argument("--dev_size", type=float, default=0.15)
         self.parser.add_argument("--tvt_list", type=list, default=["train", "test", "val"])
         self.parser.add_argument("--random_seed", type=int, default=3)
         self.parser.add_argument("--use_lemma", type=bool, default=True)
@@ -49,6 +49,7 @@ class BaseConfig:
         self.parser.add_argument("--lr", type=float, default=2e-5)
         self.parser.add_argument("--n_epochs", type=int, default=20)
         self.parser.add_argument("--train_batch_size", type=int, default=64)
+        self.parser.add_argument("--dropout", type=float, default=0.3)
         self.parser.add_argument("--num_workers", type=int, default=8)
         self.parser.add_argument("--device", type=str, default=torch.device(
             "cuda:0" if torch.cuda.is_available() else "cpu"), help="")
