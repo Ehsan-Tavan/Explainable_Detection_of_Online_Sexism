@@ -289,6 +289,7 @@ class SemanticAdjacencyMatrixBuilder(AdjacencyMatrixBuilder):
     def setup(self):
         self.logger.info("Creating vocab2frequency ...")
         vocab2frequency = self.build_word_counter()
+        self.filtered_vocabs = list(vocab2frequency.values())
         self.filter_vocabs(vocab2frequency)
         self.logger.info("Creating nod_id2node_value ...")
         self.nod_id2node_value = {idx: data for idx, data in
@@ -434,6 +435,7 @@ class SyntacticAdjacencyMatrixBuilder(AdjacencyMatrixBuilder):
     def setup(self):
         self.logger.info("Creating vocab2frequency ...")
         vocab2frequency = self.build_word_counter()
+        self.filtered_vocabs = list(vocab2frequency.values())
         self.filter_vocabs(vocab2frequency)
         self.logger.info("Creating nod_id2node_value ...")
         self.nod_id2node_value = {idx: data for idx, data in
