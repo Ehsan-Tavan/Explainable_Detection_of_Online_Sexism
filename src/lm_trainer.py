@@ -20,7 +20,7 @@ from sklearn.utils import class_weight
 
 # ============================ My packages ============================
 from configuration import BaseConfig
-from data_loader import read_csv, write_json
+from data_loader import read_csv, write_json, write_pickle
 from dataset import DataModule
 from utils import make_labels
 from models.lm_classifier import Classifier
@@ -30,8 +30,7 @@ logging.basicConfig(level=logging.DEBUG)
 if __name__ == "__main__":
     CONFIG_CLASS = BaseConfig()
     ARGS = CONFIG_CLASS.get_config()
-    print(ARGS.lm_model_path)
-    TOKENIZER = transformers.BertTokenizer.from_pretrained(ARGS.lm_model_path)
+    TOKENIZER = transformers.AutoTokenizer.from_pretrained(ARGS.lm_model_path, from_tf=True)
     LOGGER = CSVLogger(ARGS.saved_model_dir, name=ARGS.model_name)
 
     # Load data
@@ -51,6 +50,9 @@ if __name__ == "__main__":
     logging.debug("length of Test data is: %s" % len(TEST_DATA))
 
     LABEL_ENCODER = make_labels(list(TRAIN_DATA["label_sexist"]))
+    write_pickle(path=os.path.join(ARGS.saved_model_dir, ARGS.model_name, "label_encoder.pkl"),
+                 data=LABEL_ENCODER)
+
     TRAIN_LABELS = LABEL_ENCODER.transform(list(TRAIN_DATA["label_sexist"]))
     DEV_LABELS = LABEL_ENCODER.transform(list(DEV_DATA["label_sexist"]))
 
