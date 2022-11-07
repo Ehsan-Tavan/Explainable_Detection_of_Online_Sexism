@@ -77,12 +77,6 @@ class AdjacencyMatrixBuilder(ABC):
                 self.filtered_vocabs = filtered_infrequent_vocabs(
                     vocab2frequency,
                     min_occurrence=self.min_occurrence)
-            if self.use_lemma:
-                self.logger.info("Starting change token to it's lemma ...")
-                for index, word in enumerate(self.filtered_vocabs):
-                    text = self.nlp(word)
-                    for tok in text:
-                        self.filtered_vocabs[index] = tok.lemma_.lower()
             write_pickle(self.arg.filtered_vocabs_path, self.filtered_vocabs)
 
     def build_word_counter(self) -> defaultdict:
@@ -575,6 +569,7 @@ class SequentialAdjacencyMatrixBuilder(AdjacencyMatrixBuilder):
     def setup(self):
         self.logger.info("Creating vocab2frequency ...")
         vocab2frequency = self.build_word_counter()
+        self.filtered_vocabs = list(vocab2frequency.values())
         self.filter_vocabs(vocab2frequency)
         self.logger.info("Creating nod_id2node_value ...")
         self.nod_id2node_value = {idx: data for idx, data in
