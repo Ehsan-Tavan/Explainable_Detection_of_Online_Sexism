@@ -139,7 +139,7 @@ def filtered_infrequent_vocabs(vocab2frequency: dict, min_occurrence: int = 3) -
     Returns:
 
     """
-    return [vocab for vocab, count in vocab2frequency.items() if count > min_occurrence]
+    return [vocab for vocab, count in vocab2frequency.items() if count >= min_occurrence]
 
 
 def remove_stop_words_from_vocabs(vocabs: list, stopwords: list) -> list:
