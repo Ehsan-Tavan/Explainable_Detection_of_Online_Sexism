@@ -37,7 +37,7 @@ class BaseConfig:
                                  default=["rewire_id", "text"])
 
         self.parser.add_argument("--window_size", type=int, default=5)
-        self.parser.add_argument("--max_len", type=int, default=100)
+        self.parser.add_argument("--max_len", type=int, default=70)
         self.parser.add_argument("--dev_size", type=float, default=0.15)
         self.parser.add_argument("--tvt_list", type=list, default=["train", "test", "val"])
         self.parser.add_argument("--random_seed", type=int, default=3)
@@ -67,6 +67,8 @@ class BaseConfig:
                                  default=Path(__file__).parents[
                                              2].__str__() + "/data/Raw/starting_ki")
 
+        self.parser.add_argument("--assets_dir", type=str, default=Path(__file__).parents[
+                                                                       2].__str__() + "/assets")
         self.parser.add_argument("--train_data_file", type=str, default="train_all_tasks.csv")
         self.parser.add_argument("--test_data_file", type=str, default="dev_task_a_entries.csv")
         self.parser.add_argument("--vocab2frequency_path", type=str,
