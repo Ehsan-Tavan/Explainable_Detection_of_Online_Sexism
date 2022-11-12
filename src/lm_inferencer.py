@@ -25,7 +25,7 @@ if __name__ == "__main__":
     CONFIG_CLASS = BaseConfig()
     ARGS = CONFIG_CLASS.get_config()
 
-    TOKENIZER = transformers.BertTokenizer.from_pretrained(ARGS.lm_model_path)
+    TOKENIZER = transformers.AutoTokenizer.from_pretrained(ARGS.lm_model_path)
 
     LABEL_ENCODER = read_pickle(
         path=os.path.join(ARGS.saved_model_dir, ARGS.model_name, "label_encoder.pkl"))
@@ -35,9 +35,9 @@ if __name__ == "__main__":
                          names=ARGS.test_customized_headers)
 
     MODEL_PATH = "/home/ehsan.tavan/repetitive-news/assets/saved_models/assets/saved_models/Bert/" \
-                 "version_0/checkpoints/QTag-epoch=00-val_loss=0.40.ckpt"
+                 "version_0/checkpoints/QTag-epoch=00-val_loss=0.41.ckpt"
     MODEL = Classifier.load_from_checkpoint(MODEL_PATH)
-    MODEL.eval().to("cuda:0")
+    MODEL.eval()#.to("cuda:0")
 
     DATASET = InferenceDataset(texts=list(TEST_DATA.text),
                                tokenizer=TOKENIZER,
@@ -48,8 +48,8 @@ if __name__ == "__main__":
     PREDICTED_LABELS = []
     for i_batch, sample_batched in enumerate(DATALOADER):
         with torch.no_grad():
-            sample_batched["inputs_ids"] = sample_batched["inputs_ids"].to("cuda:0")
-            sample_batched["attention_mask"] = sample_batched["attention_mask"].to("cuda:0")
+            sample_batched["inputs_ids"] = sample_batched["inputs_ids"]#.to("cuda:0")
+            sample_batched["attention_mask"] = sample_batched["attention_mask"]#.to("cuda:0")
             OUTPUTS = MODEL(sample_batched)
             OUTPUTS = numpy.argmax(OUTPUTS.cpu().detach().numpy(), axis=1)
             PREDICTED_LABELS.extend(OUTPUTS)
@@ -59,4 +59,4 @@ if __name__ == "__main__":
     RESULTS = pandas.DataFrame(
         {"rewire_id": list(TEST_DATA["rewire_id"]), "label_pred": PREDICTED_LABELS})
 
-    RESULTS.to_csv("lm_results.csv", index=False)
+    RESULTS.to_csv("result.csv", index=False, encoding="utf-8")
