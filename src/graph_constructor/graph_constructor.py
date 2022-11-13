@@ -57,7 +57,8 @@ class GraphBuilder:
                 sbert_model.encode(list(self.nod_id2node_value.values())))
         elif mode == "bert":
             if os.path.exists(self.node_feats_path):
-                self.node_feats = read_pickle(self.node_feats_path)
+                self.node_feats, self.input_ids, self.attention_mask = read_pickle(
+                    self.node_feats_path)
             else:
                 text = list(self.nod_id2node_value.values())
                 tokenized = tokenizer.batch_encode_plus(text, max_length=80, padding="max_length",
@@ -70,7 +71,8 @@ class GraphBuilder:
                     lm_output = bert_model(input_ids=self.input_ids,
                                            attention_mask=self.attention_mask).pooler_output
                     self.node_feats = lm_output.clone().detach().requires_grad_(True)
-                write_pickle(self.node_feats_path, self.node_feats)
+                write_pickle(self.node_feats_path,
+                             [self.node_feats, self.input_ids, self.attention_mask])
 
         else:
             raise NotImplementedError
