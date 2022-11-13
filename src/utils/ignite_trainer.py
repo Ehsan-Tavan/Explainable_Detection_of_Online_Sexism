@@ -19,7 +19,7 @@ class IgniteTrainer:
         self.train_iterator = train_iterator
         self.valid_iterator = valid_iterator
         self.checkpoint_path = checkpoint_path
-        self.best_loss = float("inf")
+        self.best_f1_score = float("-inf")
 
         self.trainer = None
         self.train_evaluator = None
@@ -151,8 +151,7 @@ class IgniteTrainer:
             for index, batch in enumerate(dataloader):
                 input_ids, attention_mask = [x.to(self.device) for x in batch]
                 output = self.model.lm_model(input_ids=input_ids,
-                                             attention_mask=attention_mask).last_hidden_state
-                output = torch.nn.AvgPool1d(80)(output.permute(0, 2, 1)).squeeze(2)
+                                             attention_mask=attention_mask).pooler_output
                 nodes_features.append(output)
             nodes_features = torch.cat(nodes_features, axis=0)
         self.graph.x[doc_mask] = nodes_features
@@ -162,8 +161,8 @@ class IgniteTrainer:
         epoch = engine.state.epoch
 
         metrics = self.validation_evaluator.state.metrics
-        if metrics["ce"] < self.best_loss:
-            self.best_loss = metrics["ce"]
-            model_path = f"../assets/saved_models/model_epoch_{epoch}_val_loss_" \
-                         f"{self.best_loss:.4f}.pt"
+        if metrics["f1_score"] > self.best_f1_score:
+            self.best_f1_score = metrics["f1_score"]
+            model_path = f"../assets/saved_models/gnn/v1/model_epoch_{epoch}_val_f1_score_" \
+                         f"{self.best_f1_score:.4f}.pt"
             torch.save(self.model, model_path)
