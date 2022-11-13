@@ -22,12 +22,13 @@ from data_loader import read_pickle, write_pickle
 
 class GraphBuilder:
     def __init__(self, info_name2adjacency_matrix: dict, labels: list, nod_id2node_value: dict,
-                 num_test: int, id2doc: dict, node_feats_path: str):
+                 num_test: int, id2doc: dict, node_feats_path: str, max_length: int):
         self.info_name2adjacency_matrix = info_name2adjacency_matrix
         self.nod_id2node_value = nod_id2node_value
         self.labels = labels
         self.num_test = num_test
         self.id2doc = id2doc
+        self.max_length = max_length
         self.node_feats = None
         self.label_encoder = None
         self.input_ids = None
@@ -61,7 +62,8 @@ class GraphBuilder:
                     self.node_feats_path)
             else:
                 text = list(self.nod_id2node_value.values())
-                tokenized = tokenizer.batch_encode_plus(text, max_length=80, padding="max_length",
+                tokenized = tokenizer.batch_encode_plus(text, max_length=self.max_length,
+                                                        padding="max_length",
                                                         truncation=True, add_special_tokens=True,
                                                         return_tensors="pt")
                 self.input_ids = tokenized["input_ids"]
