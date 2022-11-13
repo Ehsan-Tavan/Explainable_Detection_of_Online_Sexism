@@ -7,6 +7,7 @@
 """
 
 # ============================ Third Party libs ============================
+import os
 import scipy.sparse as sp
 import numpy as np
 import torch
@@ -16,12 +17,12 @@ from sklearn.model_selection import train_test_split
 
 # ============================ My packages ============================
 from utils import create_mask
+from data_loader import read_pickle, write_pickle
 
 
 class GraphBuilder:
     def __init__(self, info_name2adjacency_matrix: dict, labels: list, nod_id2node_value: dict,
-                 num_test: int,
-                 id2doc: dict):
+                 num_test: int, id2doc: dict, node_feats_path: str):
         self.info_name2adjacency_matrix = info_name2adjacency_matrix
         self.nod_id2node_value = nod_id2node_value
         self.labels = labels
@@ -31,6 +32,7 @@ class GraphBuilder:
         self.label_encoder = None
         self.input_ids = None
         self.attention_mask = None
+        self.node_feats_path = node_feats_path
 
         self.labels.extend((["test_data"] * self.num_test))
 
@@ -54,17 +56,21 @@ class GraphBuilder:
             self.node_feats = torch.tensor(
                 sbert_model.encode(list(self.nod_id2node_value.values())))
         elif mode == "bert":
-            text = list(self.nod_id2node_value.values())
-            tokenized = tokenizer.batch_encode_plus(text, max_length=80, padding="max_length",
-                                                    truncation=True, add_special_tokens=True,
-                                                    return_tensors="pt")
-            self.input_ids = tokenized["input_ids"]
-            self.attention_mask = tokenized["attention_mask"]
-            bert_model.eval()
-            with torch.no_grad():
-                lm_output = bert_model(input_ids=self.input_ids,
-                                       attention_mask=self.attention_mask).pooler_output
-                self.node_feats = lm_output.clone().detach().requires_grad_(True)
+            if os.path.exists(self.node_feats_path):
+                self.node_feats = read_pickle(self.node_feats_path)
+            else:
+                text = list(self.nod_id2node_value.values())
+                tokenized = tokenizer.batch_encode_plus(text, max_length=80, padding="max_length",
+                                                        truncation=True, add_special_tokens=True,
+                                                        return_tensors="pt")
+                self.input_ids = tokenized["input_ids"]
+                self.attention_mask = tokenized["attention_mask"]
+                bert_model.eval()
+                with torch.no_grad():
+                    lm_output = bert_model(input_ids=self.input_ids,
+                                           attention_mask=self.attention_mask).pooler_output
+                    self.node_feats = lm_output.clone().detach().requires_grad_(True)
+                write_pickle(self.node_feats_path, self.node_feats)
 
         else:
             raise NotImplementedError
