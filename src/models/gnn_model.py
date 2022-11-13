@@ -21,7 +21,7 @@ class GraphModel(torch.nn.Module):
 
     def forward(self, graph, index):
         x = graph.x
-        edge_index, edge_attr = dropout_adj(edge_index=graph.sequential_edge_index,
+        edge_index, edge_attr = dropout_adj(edge_index=graph.semantic_edge_index,
                                             edge_attr=graph.edge_attr,
                                             p=0.3, training=self.training)
         x = self.conv1(x, edge_index, edge_attr)
@@ -47,8 +47,8 @@ class GCNModel(torch.nn.Module):
     def forward(self, graph, index):
         input_ids, attention_mask = graph.input_ids[index], graph.attention_mask[index]
         lm_output = self.lm_model(input_ids=input_ids,
-                                  attention_mask=attention_mask).last_hidden_state
-        lm_output = self.mean_pooling(lm_output.permute(0, 2, 1)).squeeze(2)
+                                  attention_mask=attention_mask).pooler_output
+        # lm_output = self.mean_pooling(lm_output.permute(0, 2, 1)).squeeze(2)
 
         graph.x[index] = lm_output.clone().detach().requires_grad_(True)
 
