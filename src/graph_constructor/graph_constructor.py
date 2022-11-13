@@ -60,8 +60,11 @@ class GraphBuilder:
                                                     return_tensors="pt")
             self.input_ids = tokenized["input_ids"]
             self.attention_mask = tokenized["attention_mask"]
-            self.node_feats = torch.rand(len(self.nod_id2node_value),
-                                         768).clone().detach().requires_grad_(True)
+            bert_model.eval()
+            with torch.no_grad():
+                lm_output = bert_model(input_ids=self.input_ids,
+                                       attention_mask=self.attention_mask).pooler_output
+                self.node_feats = lm_output.clone().detach().requires_grad_(True)
 
         else:
             raise NotImplementedError
