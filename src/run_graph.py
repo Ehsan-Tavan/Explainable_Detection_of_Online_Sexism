@@ -25,8 +25,7 @@ from utils import IgniteTrainer
 from models import GCNModel
 
 # ========================================================================
-
-# logging.basicConfig(level=logging.DEBUG)
+torch.cuda.empty_cache()
 
 if __name__ == "__main__":
     CONFIG_CLASS = BaseConfig()
@@ -46,9 +45,9 @@ if __name__ == "__main__":
 
     print("loading sbert ...")
     SBERT_MODEL = SentenceTransformer(ARGS.sbert_model)
-    TOKENIZER = transformers.XLMRobertaTokenizer.from_pretrained(ARGS.lm_model_path)
+    TOKENIZER = transformers.AutoTokenizer.from_pretrained(ARGS.lm_model_path)
     logging.info("loading LM tokenizer ...")
-    LM_MODEL = transformers.XLMRobertaModel.from_pretrained(ARGS.lm_model_path)
+    LM_MODEL = transformers.AutoModel.from_pretrained(ARGS.lm_model_path)
     print("loading LM model ...")
 
     print("Creating sequential adjacency builder ...")
@@ -100,7 +99,9 @@ if __name__ == "__main__":
         labels=list(TRAIN_DATA.label_sexist),
         nod_id2node_value=SEQUENTIAL_ADJACENCY_BUILDER_OBJ.nod_id2node_value,
         num_test=len(TEST_DATA),
-        id2doc=SEQUENTIAL_ADJACENCY_BUILDER_OBJ.index2doc
+        id2doc=SEQUENTIAL_ADJACENCY_BUILDER_OBJ.index2doc,
+        node_feats_path=os.path.join(ARGS.assets_dir, "node_feats.pkl"),
+        max_length=ARGS.max_len
     )
 
     print("Initializing node features ...")
@@ -115,7 +116,7 @@ if __name__ == "__main__":
 
     torch.manual_seed(12345)
     MODEL = GCNModel(bert_model=LM_MODEL,
-                     num_feature=768,
+                     num_feature=1024,
                      hidden_dim=256,
                      num_classes=len(set(graph_builder_obj.labels)) - 2)
     print(MODEL)
@@ -133,11 +134,10 @@ if __name__ == "__main__":
         torch.arange(NB_TRAIN + NB_VAL, NB_TRAIN + NB_VAL + NB_TEST, dtype=torch.long))
     doc_idx = Data.ConcatDataset([train_idx, val_idx, test_idx])
 
-    batch_size = 64
-    IDX_LOADER_TRAIN = Data.DataLoader(train_idx, batch_size=batch_size, shuffle=True)
-    IDX_LOADER_VAL = Data.DataLoader(val_idx, batch_size=batch_size, shuffle=False)
-    IDX_LOADER_TEST = Data.DataLoader(test_idx, batch_size=batch_size, shuffle=False)
-    IDX_LOADER = Data.DataLoader(doc_idx, batch_size=batch_size, shuffle=True)
+    IDX_LOADER_TRAIN = Data.DataLoader(train_idx, batch_size=ARGS.train_batch_size, shuffle=True)
+    IDX_LOADER_VAL = Data.DataLoader(val_idx, batch_size=ARGS.train_batch_size, shuffle=False)
+    IDX_LOADER_TEST = Data.DataLoader(test_idx, batch_size=ARGS.train_batch_size, shuffle=False)
+    IDX_LOADER = Data.DataLoader(doc_idx, batch_size=ARGS.train_batch_size, shuffle=True)
 
     MODEL.to(ARGS.device)
     GRAPH.to(ARGS.device)

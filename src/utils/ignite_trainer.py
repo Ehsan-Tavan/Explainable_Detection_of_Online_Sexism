@@ -20,6 +20,8 @@ class IgniteTrainer:
         self.valid_iterator = valid_iterator
         self.checkpoint_path = checkpoint_path
         self.best_f1_score = float("-inf")
+        self.model_path = ""
+        self.graph_path = ""
 
         self.trainer = None
         self.train_evaluator = None
@@ -163,6 +165,8 @@ class IgniteTrainer:
         metrics = self.validation_evaluator.state.metrics
         if metrics["f1_score"] > self.best_f1_score:
             self.best_f1_score = metrics["f1_score"]
-            model_path = f"../assets/saved_models/gnn/v1/model_epoch_{epoch}_val_f1_score_" \
-                         f"{self.best_f1_score:.4f}.pt"
-            torch.save(self.model, model_path)
+            self.model_path = f"../assets/saved_models/gnn/v3/model_epoch_{epoch}_val_f1_score_" \
+                              f"{self.best_f1_score:.4f}.pt"
+            self.graph_path = f"../assets/saved_models/gnn/v3/model_epoch_{epoch}_graph.pt"
+            torch.save(self.model, self.model_path)
+            torch.save(self.graph, self.graph_path)

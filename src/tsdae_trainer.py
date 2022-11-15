@@ -24,8 +24,8 @@ logging.basicConfig(format='%(asctime)s - %(message)s',
 #### /print debug information to stdout
 
 # Train Parameters
-model_name = '/home/LanguageModels/bert_large_uncased'
-batch_size = 32
+model_name = '/home/LanguageModels/xlm_roberta_large'
+batch_size = 16
 
 # Save path to store our model
 output_name = ''
@@ -41,13 +41,13 @@ reddit_data = read_csv("../data/Raw/starting_ki/reddit_1M_unlabelled.csv")
 gab_data = read_csv("../data/Raw/starting_ki/gab_1M_unlabelled.csv")
 for sentence in list(reddit_data["text"]):
     train_sentences.append(sentence)
-for sentence in gab_data.text:
+for sentence in list(gab_data["text"]):
     train_sentences.append(sentence)
 
 train_sentences = cleaner.transform(train_sentences)
 ################# Intialize an SBERT model #################
 
-word_embedding_model = models.Transformer("bert-large-uncased")
+word_embedding_model = models.Transformer(model_name)
 # Apply **cls** pooling to get one fixed sized sentence vector
 pooling_model = models.Pooling(word_embedding_model.get_word_embedding_dimension(), 'cls')
 model = SentenceTransformer(modules=[word_embedding_model, pooling_model])
@@ -68,6 +68,6 @@ model.fit(
     optimizer_params={'lr': 3e-5},
     show_progress_bar=True,
     checkpoint_path=model_output_path,
-    checkpoint_save_steps=10000,
+    checkpoint_save_steps=30000,
     use_amp=False  # Set to True, if your GPU supports FP16 cores
 )

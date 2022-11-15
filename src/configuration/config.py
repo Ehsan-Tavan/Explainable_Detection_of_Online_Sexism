@@ -37,7 +37,7 @@ class BaseConfig:
                                  default=["rewire_id", "text"])
 
         self.parser.add_argument("--window_size", type=int, default=5)
-        self.parser.add_argument("--max_len", type=int, default=70)
+        self.parser.add_argument("--max_len", type=int, default=50)
         self.parser.add_argument("--dev_size", type=float, default=0.15)
         self.parser.add_argument("--tvt_list", type=list, default=["train", "test", "val"])
         self.parser.add_argument("--random_seed", type=int, default=3)
@@ -52,7 +52,7 @@ class BaseConfig:
         self.parser.add_argument("--dropout", type=float, default=0.3)
         self.parser.add_argument("--num_workers", type=int, default=8)
         self.parser.add_argument("--device", type=str, default=torch.device(
-            "cuda:0" if torch.cuda.is_available() else "cpu"), help="")
+            "cuda:1" if torch.cuda.is_available() else "cpu"), help="")
 
     def add_path(self) -> None:
         """
@@ -96,7 +96,7 @@ class BaseConfig:
                                  default="../assets/pretrained_models/"
                                          "distiluse-base-multilingual-cased-v2")
         self.parser.add_argument("--lm_model_path", type=str,
-                                 default="/home/LanguageModels/bert_large_uncased")
+                                 default="/home/LanguageModels/xlm_roberta_large")
         self.parser.add_argument("--spacy_model_path", type=str,
                                  default="../assets/en_core_web_sm")
         self.parser.add_argument("--saved_model_dir", type=str,
