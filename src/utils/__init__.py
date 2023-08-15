@@ -6,3 +6,4 @@ from .helper import cal_accuracy, train_step, visualize, create_mask, calculate_
     calculate_pmi, test_step, predict, filtered_infrequent_vocabs, remove_stop_words_from_vocabs, \
     change_vocab_to_lemma, make_labels
 from .ignite_trainer import IgniteTrainer
+from .normalizer import normalize_text

@@ -9,7 +9,7 @@ from sentence_transformers import SentenceTransformer, LoggingHandler, models, d
 from torch.utils.data import DataLoader
 from datetime import datetime
 import sys
-from data_loader import read_csv
+from data_loader import read_csv, write_pickle, read_pickle
 from cleantext.sklearn import CleanTransformer
 
 cleaner = CleanTransformer(no_punct=True, lower=True, no_line_breaks=True,
@@ -24,8 +24,8 @@ logging.basicConfig(format='%(asctime)s - %(message)s',
 #### /print debug information to stdout
 
 # Train Parameters
-model_name = '/home/LanguageModels/xlm_roberta_large'
-batch_size = 16
+model_name = '/home/LanguageModels/bertweet'
+batch_size = 64
 
 # Save path to store our model
 output_name = ''
@@ -36,21 +36,26 @@ model_output_path = '../assets/saved_models/tsdae/train_tsdae{}-{}'.format(outpu
                                                      datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
 
 ################# Read the train corpus  #################
-train_sentences = []
-reddit_data = read_csv("../data/Raw/starting_ki/reddit_1M_unlabelled.csv")
-gab_data = read_csv("../data/Raw/starting_ki/gab_1M_unlabelled.csv")
-for sentence in list(reddit_data["text"]):
-    train_sentences.append(sentence)
-for sentence in list(gab_data["text"]):
-    train_sentences.append(sentence)
+# train_sentences = []
+# reddit_data = read_csv("../data/Raw/starting_ki/reddit_1M_unlabelled.csv")
+# gab_data = read_csv("../data/Raw/starting_ki/gab_1M_unlabelled.csv")
+# for sentence in list(reddit_data["text"]):
+#     train_sentences.append(sentence)
+# for sentence in list(gab_data["text"]):
+#     train_sentences.append(sentence)
+#
+# train_sentences = cleaner.transform(train_sentences)
+#
+# write_pickle("../data/Raw/starting_ki/tsdae_data.pkl", train_sentences)
 
-train_sentences = cleaner.transform(train_sentences)
+train_sentences = read_pickle("../data/Raw/starting_ki/tsdae_data.pkl")
 ################# Intialize an SBERT model #################
 
 word_embedding_model = models.Transformer(model_name)
 # Apply **cls** pooling to get one fixed sized sentence vector
 pooling_model = models.Pooling(word_embedding_model.get_word_embedding_dimension(), 'cls')
 model = SentenceTransformer(modules=[word_embedding_model, pooling_model])
+model.max_seq_length = 60
 
 ################# Train and evaluate the model (it needs about 1 hour for one epoch of AskUbuntu) #################
 # We wrap our training sentences in the DenoisingAutoEncoderDataset to add deletion noise on the fly

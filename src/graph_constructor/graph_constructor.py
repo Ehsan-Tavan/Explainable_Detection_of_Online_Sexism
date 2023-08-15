@@ -8,34 +8,40 @@
 
 # ============================ Third Party libs ============================
 import os
-import scipy.sparse as sp
+
 import numpy as np
+import scipy.sparse as sp
 import torch
-from torch_geometric.data import Data as PyGSingleGraphData
 from sklearn import preprocessing
 from sklearn.model_selection import train_test_split
+from torch_geometric.data import Data as PyGSingleGraphData
 
+from data_loader import read_pickle, write_pickle
 # ============================ My packages ============================
 from utils import create_mask
-from data_loader import read_pickle, write_pickle
 
 
 class GraphBuilder:
     def __init__(self, info_name2adjacency_matrix: dict, labels: list, nod_id2node_value: dict,
-                 num_test: int, id2doc: dict, node_feats_path: str, max_length: int):
+                 num_test: int, num_train: int, id2doc: dict, node_feats_path: str, max_length: int,
+                 num_extra: int = None):
         self.info_name2adjacency_matrix = info_name2adjacency_matrix
         self.nod_id2node_value = nod_id2node_value
         self.labels = labels
         self.num_test = num_test
+        self.num_train = num_train
         self.id2doc = id2doc
         self.max_length = max_length
         self.node_feats = None
         self.label_encoder = None
         self.input_ids = None
         self.attention_mask = None
+        self.num_extra = num_extra
         self.node_feats_path = node_feats_path
 
         self.labels.extend((["test_data"] * self.num_test))
+        if self.num_extra:
+            self.labels.extend((["extra_data"] * self.num_extra))
 
         if len(self.labels) != len(nod_id2node_value):
             self.labels.extend(["words"] * (len(nod_id2node_value) - len(id2doc)))
@@ -89,16 +95,17 @@ class GraphBuilder:
         Returns:
 
         """
-        doc_id_chunks = train_test_split(list(self.id2doc.keys())[:-self.num_test],
-                                         test_size=dev_size, shuffle=False,
+        doc_id_chunks = train_test_split(list(self.id2doc.keys())[:self.num_train],
+                                         test_size=dev_size, shuffle=True,
                                          random_state=seed)
         doc_id_chunks.append(list(self.id2doc.keys())[-self.num_test:])
+        # [[train],[dev],[test]]
         data_masks = create_mask(len(self.nod_id2node_value), doc_id_chunks)
         return data_masks
 
     def get_pyg_graph(self, data_masks):
         labels = self.label_encoder.transform(self.labels)
-        pyg_graph = PyGSingleGraphData(x=self.node_feats,
+        pyg_graph = PyGSingleGraphData(x=self.node_feats,  # embedding
                                        y=torch.tensor(labels),
                                        input_ids=self.input_ids,
                                        attention_mask=self.attention_mask,

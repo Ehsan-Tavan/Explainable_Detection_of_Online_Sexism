@@ -1,6 +1,5 @@
 from functools import partial
 import torch
-import logging
 import torch.utils.data as Data
 from ignite.engine import Engine, Events
 from ignite.metrics import Accuracy, Loss, RunningAverage
@@ -40,12 +39,12 @@ class IgniteTrainer:
     def configure_trainer_engine(self):
         self.trainer = Engine(self.train_step)
         RunningAverage(output_transform=lambda x: x).attach(self.trainer, "loss")
+        self.trainer.add_event_handler(Events.EPOCH_COMPLETED, self._update_feature)
         self.trainer.add_event_handler(Events.EPOCH_COMPLETED, self.log_training_results)
         self.trainer.add_event_handler(Events.EPOCH_COMPLETED, self.log_validation_results)
         self.progress_bar = ProgressBar(persist=True, bar_format="")
         self.progress_bar.attach(self.trainer, ["loss"])
         self.trainer.add_event_handler(Events.EPOCH_COMPLETED, self.save_best_epoch_only)
-        self.trainer.add_event_handler(Events.EPOCH_COMPLETED, self._update_feature)
 
     def configure_train_evaluator(self):
         eval_step = partial(self.eval_step, mask="train_mask")
@@ -88,7 +87,7 @@ class IgniteTrainer:
         (batch,) = [x.to(self.device) for x in batch]
         self.optimizer.zero_grad()
         train_mask = self.graph.train_mask[batch].type(torch.BoolTensor)
-        y_pred = self.model(self.graph, batch)[train_mask]
+        y_pred = self.model(batch)[train_mask]
         y_true = self.graph.y[batch][train_mask]
         loss = self.criterion(y_pred, y_true)
         loss.backward(retain_graph=True)
@@ -100,7 +99,7 @@ class IgniteTrainer:
         with torch.no_grad():
             (batch,) = [x.to(self.device) for x in batch]
             val_mask = self.graph[mask][batch].type(torch.BoolTensor)
-            y_pred = self.model(self.graph, batch)[val_mask]
+            y_pred = self.model(batch)[val_mask]
             y_true = self.graph.y[batch][val_mask]
         return y_pred, y_true
 
@@ -130,7 +129,6 @@ class IgniteTrainer:
     def configure_optimizers(self):
         return torch.optim.Adam([
             {"params": self.model.lm_model.parameters(), "lr": 1e-5},
-            {"params": self.model.classifier.parameters(), "lr": 1e-3},
             {"params": self.model.gnn_model.parameters(), "lr": 1e-3},
         ], lr=1e-3
         )
@@ -144,7 +142,7 @@ class IgniteTrainer:
         doc_mask = self.graph.train_mask + self.graph.val_mask + self.graph.test_mask
         # no gradient needed, uses a large batchsize to speed up the process
         dataloader = Data.DataLoader(
-            Data.TensorDataset(self.graph.input_ids[doc_mask], self.graph.attention_mask[doc_mask]),
+            Data.TensorDataset(self.graph.input_ids, self.graph.attention_mask),
             batch_size=1024
         )
         with torch.no_grad():
@@ -156,7 +154,7 @@ class IgniteTrainer:
                                              attention_mask=attention_mask).pooler_output
                 nodes_features.append(output)
             nodes_features = torch.cat(nodes_features, axis=0)
-        self.graph.x[doc_mask] = nodes_features
+        self.graph.x = nodes_features
         print("Node features are updated")
 
     def save_best_epoch_only(self, engine):
@@ -165,8 +163,8 @@ class IgniteTrainer:
         metrics = self.validation_evaluator.state.metrics
         if metrics["f1_score"] > self.best_f1_score:
             self.best_f1_score = metrics["f1_score"]
-            self.model_path = f"../assets/saved_models/gnn/v3/model_epoch_{epoch}_val_f1_score_" \
+            self.model_path = f"../assets/saved_models/gnn/v7/model_epoch_{epoch}_val_f1_score_" \
                               f"{self.best_f1_score:.4f}.pt"
-            self.graph_path = f"../assets/saved_models/gnn/v3/model_epoch_{epoch}_graph.pt"
+            self.graph_path = f"../assets/saved_models/gnn/v7/model_epoch_{epoch}_graph.pt"
             torch.save(self.model, self.model_path)
             torch.save(self.graph, self.graph_path)

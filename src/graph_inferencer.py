@@ -15,6 +15,7 @@ import numpy
 import transformers
 from torch.utils.data import DataLoader
 from sklearn.metrics import accuracy_score
+from sklearn.metrics import f1_score
 # ============================ My packages ============================
 from configuration import BaseConfig
 from data_loader import read_pickle, read_csv
@@ -31,16 +32,19 @@ if __name__ == "__main__":
                          columns=ARGS.test_data_headers,
                          names=ARGS.test_customized_headers)
 
-    graph_path = "/home/ehsan.tavan/repetitive-news/assets/saved_models/assets/saved_models/gnn/v2/" \
-                 "model_epoch_2_graph.pt"
-    model_path = "/home/ehsan.tavan/repetitive-news/assets/saved_models/assets/saved_models/gnn/v2/" \
-                 "model_epoch_2_val_f1_score_0.8121.pt"
+    graph_path = "/home/ehsan.tavan/repetitive-news/assets/saved_models/assets/saved_models/gnn/v7/" \
+                 "model_epoch_3_graph.pt"
+    model_path = "/home/ehsan.tavan/repetitive-news/assets/saved_models/assets/saved_models/gnn/v7/" \
+                 "model_epoch_3_val_f1_score_0.8595.pt"
 
     LABEL_ENCODER = read_pickle(
         path=os.path.join(ARGS.saved_model_dir, ARGS.model_name, "label_encoder.pkl"))
 
     graph = torch.load(graph_path)
-    model = torch.load(model_path)
+    model = torch.load(model_path, map_location="cuda:0")
+    model.to("cuda:0")
+    graph.to("cuda:0")
+    model.eval()
 
     NB_TRAIN, NB_VAL, NB_TEST = graph.train_mask.sum(), graph.val_mask.sum(), graph.test_mask.sum()
     # create index loader
@@ -54,14 +58,14 @@ if __name__ == "__main__":
     IDX_LOADER_TEST = Data.DataLoader(test_idx, batch_size=ARGS.train_batch_size, shuffle=False)
 
     PREDICTED_LABELS = []
-    for idx in IDX_LOADER_VAL:
+    for idx in IDX_LOADER_TEST:
         with torch.no_grad():
             PREDICTED_LABELS.extend(torch.argmax(model(graph, idx), dim=1).cpu().detach().numpy())
-    # PREDICTED_LABELS = list(LABEL_ENCODER.inverse_transform(PREDICTED_LABELS))
+    PREDICTED_LABELS = list(LABEL_ENCODER.inverse_transform(PREDICTED_LABELS))
 
-    print(accuracy_score(graph.y[graph.val_mask].cpu().detach().numpy(), list(PREDICTED_LABELS)))
-    # RESULTS = pandas.DataFrame(
-    #     {"rewire_id": list(TEST_DATA["rewire_id"]), "label_pred": PREDICTED_LABELS})
-    #
-    # RESULTS.to_csv("result.csv", index=False, encoding="utf-8")
+    # print(accuracy_score(graph.y[graph.val_mask].cpu().detach().numpy(), list(PREDICTED_LABELS)))
+    RESULTS = pandas.DataFrame(
+        {"rewire_id": list(TEST_DATA["rewire_id"]), "label_pred": PREDICTED_LABELS})
+
+    RESULTS.to_csv("result.csv", index=False, encoding="utf-8")
 

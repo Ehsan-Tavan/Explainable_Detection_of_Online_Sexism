@@ -35,8 +35,10 @@ if __name__ == "__main__":
                          names=ARGS.test_customized_headers)
 
     MODEL_PATH = "/home/ehsan.tavan/repetitive-news/assets/saved_models/assets/saved_models/Bert/" \
-                 "version_0/checkpoints/QTag-epoch=00-val_loss=0.41.ckpt"
+                 "version_2/checkpoints/QTag-epoch=01-val_loss=0.41.ckpt"
     MODEL = Classifier.load_from_checkpoint(MODEL_PATH)
+
+    MODEL.model.save_pretrained("./xlm")
     MODEL.eval()#.to("cuda:0")
 
     DATASET = InferenceDataset(texts=list(TEST_DATA.text),

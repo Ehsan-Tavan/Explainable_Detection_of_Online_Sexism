@@ -7,8 +7,9 @@
 """
 # ============================ Third Party libs ============================
 from typing import List
-import torch
+
 import pytorch_lightning as pl
+import torch
 
 # ============================ My packages ============================
 from .dataset import CustomDataset
@@ -19,8 +20,8 @@ class DataModule(pl.LightningDataModule):
     DataModule
     """
 
-    def __init__(self, train_data: List[str], train_labels: list, val_data: List[str],
-                 val_labels: list, config, tokenizer):
+    def __init__(self, train_data: List[str], train_labels: List[int], val_data: List[str],
+                 val_labels: List[int], config, tokenizer):
         super().__init__()
         self.config = config
         self.train_data = train_data

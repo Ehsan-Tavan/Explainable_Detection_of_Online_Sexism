@@ -74,12 +74,12 @@ if __name__ == "__main__":
     # Instantiate the Model Trainer
     CHECKPOINT_CALLBACK = ModelCheckpoint(monitor="val_loss",
                                           filename="QTag-{epoch:02d}-{val_loss:.2f}",
-                                          save_top_k=1,  # ARGS.save_top_k,
+                                          save_top_k=3,  # ARGS.save_top_k,
                                           mode="min")
     EARLY_STOPPING_CALLBACK = EarlyStopping(monitor="val_loss", patience=10)
 
     # Instantiate the Model Trainer
-    TRAINER = pl.Trainer(max_epochs=ARGS.n_epochs, gpus=[0],
+    TRAINER = pl.Trainer(max_epochs=ARGS.n_epochs, gpus=[1],
                          callbacks=[CHECKPOINT_CALLBACK, EARLY_STOPPING_CALLBACK],
                          progress_bar_refresh_rate=60, logger=LOGGER)
     N_CLASSES = len(np.unique(TRAIN_LABELS))

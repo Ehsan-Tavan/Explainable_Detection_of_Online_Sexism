@@ -129,17 +129,18 @@ def create_mask(num_samples: int, doc_id_chunks: List[list]):
     return mask_ids
 
 
-def filtered_infrequent_vocabs(vocab2frequency: dict, min_occurrence: int = 3) -> list:
+def filtered_infrequent_vocabs(vocabs: List[str], vocab2frequency: dict, min_occurrence: int = 3) -> list:
     """
 
     Args:
+        vocabs:
         vocab2frequency:
         min_occurrence:
 
     Returns:
 
     """
-    return [vocab for vocab, count in vocab2frequency.items() if count >= min_occurrence]
+    return [vocab for vocab in vocabs if vocab2frequency[vocab] >= min_occurrence]
 
 
 def remove_stop_words_from_vocabs(vocabs: list, stopwords: list) -> list:
