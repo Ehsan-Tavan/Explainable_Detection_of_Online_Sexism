@@ -21,8 +21,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 from tqdm import tqdm
 
 # ============================ My packages ============================
-from data_loader import read_pickle, write_pickle
-from utils import filtered_infrequent_vocabs, remove_stop_words_from_vocabs, \
+from src.data_loader import read_pickle, write_pickle
+from src.utils import filtered_infrequent_vocabs, remove_stop_words_from_vocabs, \
     calculate_tf_idf, calculate_pmi
 
 
@@ -322,7 +322,7 @@ class SemanticAdjacencyMatrixBuilder(AdjacencyMatrixBuilder):
         self.tokenizer = tre.Tokenizer(arg.lm_model_path, language=self.arg.spacy_model_path)
         self.model = tre.TransformerEmbedder(arg.lm_model_path, subtoken_pooling="last",
                                              output_layer="last")
-        self.model.to("cuda:1")
+        self.model.to(arg.device)
         self.use_lemma = arg.use_lemma
         self.remove_stop_words = arg.remove_stop_words
         self.remove_infrequent_vocabs = arg.remove_infrequent_vocabs
@@ -344,7 +344,8 @@ class SemanticAdjacencyMatrixBuilder(AdjacencyMatrixBuilder):
         """
         word_pair2semantic_relation_count = defaultdict(int)
         for doc in tqdm(self.docs):
-            tokenized_text = self.tokenizer(doc, return_tensors=True, use_spacy=True).to("cuda:1")
+            tokenized_text = self.tokenizer(doc, return_tensors=True, use_spacy=True).to(
+                self.arg.device)
             outputs = self.model(**tokenized_text).word_embeddings.squeeze()[
                       1:-1].detach().cpu().numpy()
             word_similarity_matrix = cosine_similarity(outputs, outputs)
@@ -616,8 +617,7 @@ class SequentialAdjacencyMatrixBuilder(AdjacencyMatrixBuilder):
         self.filtered_vocabs = []
         self.nod_id2node_value = {}
         self.nlp = spacy.load(
-            "/home/maryam.najafi/Project_Sexism/"
-            "Explainable_Detection_of_Online_Sexism/assets/en_core_web_sm")
+            "/mnt/disk2/ehsan.tavan/ex/assets/en_core_web_sm")
 
     def setup(self):
         super().setup()
@@ -752,7 +752,7 @@ class SequentialAdjacencyMatrixBuilder(AdjacencyMatrixBuilder):
 
             with open(self.arg.sequential_word_to_word_edge_weight_path, "rb") as file:
                 word_to_word_rows, word_to_word_columns, word_to_word_weights, doc_word2frequency, \
-                    word2docs_frequency = pickle.load(file)
+                word2docs_frequency = pickle.load(file)
 
         if not os.path.exists(self.arg.sequential_word_to_doc_edge_weight_path):
             self.logger.info("Creating sequential_word_to_doc_edge_weight ...")

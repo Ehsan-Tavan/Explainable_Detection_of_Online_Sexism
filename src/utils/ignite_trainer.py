@@ -163,8 +163,8 @@ class IgniteTrainer:
         metrics = self.validation_evaluator.state.metrics
         if metrics["f1_score"] > self.best_f1_score:
             self.best_f1_score = metrics["f1_score"]
-            self.model_path = f"../assets/saved_models/gnn/v7/model_epoch_{epoch}_val_f1_score_" \
+            self.model_path = f"../assets/saved_models/gnn/model_epoch_{epoch}_val_f1_score_" \
                               f"{self.best_f1_score:.4f}.pt"
-            self.graph_path = f"../assets/saved_models/gnn/v7/model_epoch_{epoch}_graph.pt"
+            self.graph_path = f"../assets/saved_models/gnn/model_epoch_{epoch}_graph.pt"
             torch.save(self.model, self.model_path)
             torch.save(self.graph, self.graph_path)

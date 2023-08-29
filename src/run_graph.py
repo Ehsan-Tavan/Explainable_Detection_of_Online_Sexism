@@ -35,14 +35,14 @@ if __name__ == "__main__":
     print("Loading train data...... ...")
     TRAIN_DATA = read_csv(os.path.join(ARGS.raw_data_dir, ARGS.train_data_file),
                           columns=ARGS.data_headers,
-                          names=ARGS.customized_headers)[:100]
+                          names=ARGS.customized_headers)
 
     TRAIN_DATA.text = TRAIN_DATA.text.apply(lambda x: normalize_text(x))
     print("train set contain %s sample ..." % len(TRAIN_DATA))
     print("Loading test data ...")
     TEST_DATA = read_csv(os.path.join(ARGS.raw_data_dir, ARGS.test_data_file),
                          columns=ARGS.test_data_headers,
-                         names=ARGS.test_customized_headers)[:100]
+                         names=ARGS.test_customized_headers)
     TEST_DATA.text = TEST_DATA.text.apply(lambda x: normalize_text(x))
 
     print("test set contain %s sample ..." % len(TEST_DATA))
@@ -63,21 +63,21 @@ if __name__ == "__main__":
     print("Creating sequential adjacency builder ...")
     SEQUENTIAL_ADJACENCY_BUILDER_OBJ = SequentialAdjacencyMatrixBuilder(
         docs=list(TRAIN_DATA.text) + list(TEST_DATA.text),
-        arg=ARGS, logger=logging)
+        arg=ARGS, logger=logging, sbert_model=LM_MODEL)
     SEQUENTIAL_ADJACENCY_BUILDER_OBJ.setup()
     print("Sequential adjacency setup completed ...")
 
     print("Creating syntactic adjacency builder ...")
     SYNTACTIC_ADJACENCY_BUILDER_OBJ = SyntacticAdjacencyMatrixBuilder(
         docs=list(TRAIN_DATA.text) + list(TEST_DATA.text),
-        arg=ARGS, logger=logging)
+        arg=ARGS, logger=logging, sbert_model=LM_MODEL)
     SYNTACTIC_ADJACENCY_BUILDER_OBJ.setup()
     print("Syntactic adjacency setup completed ...")
 
     print("Creating semantic adjacency builder ...")
     SEMANTIC_ADJACENCY_BUILDER_OBJ = SemanticAdjacencyMatrixBuilder(
         docs=list(TRAIN_DATA.text) + list(TEST_DATA.text),
-        arg=ARGS, logger=logging)
+        arg=ARGS, logger=logging, sbert_model=LM_MODEL)
     SEMANTIC_ADJACENCY_BUILDER_OBJ.setup()
     print("Semantic adjacency setup completed ...")
 
@@ -118,7 +118,6 @@ if __name__ == "__main__":
 
     print("Creating data masks ...")
     GRAPH = graph_builder_obj.get_pyg_graph(data_masks)
-    print(GRAPH)
 
     torch.manual_seed(12345)
     MODEL = GCNModel(bert_model=LM_MODEL,
@@ -126,8 +125,6 @@ if __name__ == "__main__":
                      num_feature=1024,
                      hidden_dim=512,
                      num_classes=len(set(graph_builder_obj.labels)) - 2)
-    print(MODEL)
-    print(len(set(graph_builder_obj.labels)) - 2)
 
     class_weights = compute_class_weight(
         y=np.array(GRAPH.y[GRAPH.train_mask]),
