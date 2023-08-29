@@ -617,7 +617,7 @@ class SequentialAdjacencyMatrixBuilder(AdjacencyMatrixBuilder):
         self.filtered_vocabs = []
         self.nod_id2node_value = {}
         self.nlp = spacy.load(
-            "/mnt/disk2/ehsan.tavan/ex/assets/en_core_web_sm")
+            "../assets/en_core_web_sm")
 
     def setup(self):
         super().setup()
